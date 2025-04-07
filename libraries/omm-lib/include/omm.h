@@ -434,7 +434,7 @@ typedef struct ommCpuBakeInputDesc
    // When dynamicSubdivisionScale is disabled maxSubdivisionLevel is the subdivision level applied uniformly to all
    // triangles.
    uint8_t                  maxSubdivisionLevel;
-   // Max allowed size of ommCpuBakeResultDesc::arrayData
+   // Max allowed size in bytes of ommCpuBakeResultDesc::arrayData
    // The baker will choose to downsample the most appropriate omm blocks (based on area, reuse, coverage and other factors)
    // until this limit is met.
    uint32_t                 maxArrayDataSize;
