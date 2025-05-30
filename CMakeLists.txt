@@ -10,12 +10,6 @@ else()
 	option(OMM_BUILD_VIEWER "Build omm viewer tool" OFF)
 endif()
 
-if (TARGET nvrhi)
-	option(OMM_BUILD_OMM_GPU_NVRHI "Build omm gpu nvrhi layer" ON)
-else()
-	option(OMM_BUILD_OMM_GPU_NVRHI "Build omm gpu nvrhi layer" OFF)
-endif()
-
 if (NOT OMM_LIB_TARGET_NAME)
     option(OMM_USE_LEGACY_OMM_LIB_NAME "Use the legacy target name of omm-lib: \"omm-sdk\"" OFF)
 
@@ -54,6 +48,13 @@ if (NOT DEFINED OMM_PROJECT_FOLDER)
 endif()
 
 add_subdirectory(external)
+
+if (TARGET nvrhi) # Must be after including External folder (but definition can also come from parent project.)
+	option(OMM_BUILD_OMM_GPU_NVRHI "Build omm gpu nvrhi layer" ON)
+else()
+	option(OMM_BUILD_OMM_GPU_NVRHI "Build omm gpu nvrhi layer" OFF)
+endif()
+
 add_subdirectory(libraries/omm-lib)
 
 if (OMM_BUILD_OMM_GPU_NVRHI)
