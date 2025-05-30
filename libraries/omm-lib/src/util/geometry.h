@@ -218,7 +218,13 @@ namespace omm
 
     static void GetUInt32Indices(ommIndexFormat indexFormat, const void* indices, size_t triIndexIndex, uint32_t outIndices[3])
     {
-        if (indexFormat == ommIndexFormat_UINT_16)
+        if (indexFormat == ommIndexFormat_UINT_8)
+        {
+            outIndices[0] = ((const uint8_t*)indices)[triIndexIndex + 0];
+            outIndices[1] = ((const uint8_t*)indices)[triIndexIndex + 1];
+            outIndices[2] = ((const uint8_t*)indices)[triIndexIndex + 2];
+        }
+        else if (indexFormat == ommIndexFormat_UINT_16)
         {
             outIndices[0] = ((const uint16_t*)indices)[triIndexIndex + 0];
             outIndices[1] = ((const uint16_t*)indices)[triIndexIndex + 1];

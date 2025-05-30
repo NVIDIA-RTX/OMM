@@ -41,11 +41,11 @@ namespace Cpu
         EnableValidation                = 1u << 5,
 
         // Internal / not publicly exposed options.
-        EnableAABBTesting               = 1u << 6,
-        DisableLevelLineIntersection    = 1u << 7,
-        DisableFineClassification       = 1u << 8,
-        EnableNearDuplicateDetectionBruteForce = 1u << 9,
-        EnableEdgeHeuristic             = 1u << 10
+        EnableAABBTesting               = 1u << 7,
+        DisableLevelLineIntersection    = 1u << 8,
+        DisableFineClassification       = 1u << 9,
+        EnableNearDuplicateDetectionBruteForce = 1u << 10,
+        EnableEdgeHeuristic             = 1u << 11
     };
 
     constexpr void ValidateInternalBakeFlags()
@@ -1872,10 +1872,23 @@ namespace Cpu
             // Compress to 16 bit indices if possible & allowed.
             ommIndexFormat ommIndexFormat = ommIndexFormat_UINT_32;
             {
-                const bool force32bit = ((int32_t)desc.bakeFlags & (int32_t)ommCpuBakeFlags_Force32BitIndices) == (int32_t)ommCpuBakeFlags_Force32BitIndices;
+                const bool allow8bitIndices = ((int32_t)desc.bakeFlags & (int32_t)ommCpuBakeFlags_Allow8BitIndices) == (int32_t)ommCpuBakeFlags_Allow8BitIndices;
+                const bool force32bitIndices = ((int32_t)desc.bakeFlags & (int32_t)ommCpuBakeFlags_Force32BitIndices) == (int32_t)ommCpuBakeFlags_Force32BitIndices;
+                const bool canCompressTo8Bit = triangleCount <= std::numeric_limits<int8_t>::max();
                 const bool canCompressTo16Bit = triangleCount <= std::numeric_limits<int16_t>::max();
 
-                if (canCompressTo16Bit && !force32bit)
+                if (allow8bitIndices && canCompressTo8Bit && !force32bitIndices)
+                {
+                    int8_t* ommIndexBuffer8 = (int8_t*)res.ommIndexBuffer.data();
+                    for (int32_t i = 0; i < triangleCount; ++i) {
+                        int32_t idx = res.ommIndexBuffer[i];
+                        int8_t idx8 = (int8_t)idx;
+                        ommIndexBuffer8[i] = idx8;
+                    }
+
+                    ommIndexFormat = ommIndexFormat_UINT_8;
+                }
+                else if (canCompressTo16Bit && !force32bitIndices)
                 {
                     int16_t* ommIndexBuffer16 = (int16_t*)res.ommIndexBuffer.data();
                     for (int32_t i = 0; i < triangleCount; ++i) {

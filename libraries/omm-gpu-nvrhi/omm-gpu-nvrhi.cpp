@@ -723,7 +723,19 @@ void GpuBakeNvrhiImpl::GetPreDispatchInfo(const GpuBakeNvrhi::Input& params, Gpu
 	omm::Result res = Gpu::GetPreDispatchInfo(m_pipeline, config, &preBuildInfo);
 	assert(res == omm::Result::SUCCESS);
 
-	info.ommIndexFormat = preBuildInfo.outOmmIndexBufferFormat == omm::IndexFormat::UINT_16 ? nvrhi::Format::R16_UINT : nvrhi::Format::R32_UINT;
+	if (preBuildInfo.outOmmIndexBufferFormat == omm::IndexFormat::UINT_8) 
+	{
+		info.ommIndexFormat = nvrhi::Format::R8_UINT;
+	} 
+	else if (preBuildInfo.outOmmIndexBufferFormat == omm::IndexFormat::UINT_16) 
+	{
+		info.ommIndexFormat = nvrhi::Format::R16_UINT;
+	} 
+	else
+	{ 
+		assert(preBuildInfo.outOmmIndexBufferFormat == omm::IndexFormat::UINT_32);
+		info.ommIndexFormat = nvrhi::Format::R32_UINT;
+	}
 	info.ommIndexBufferSize = preBuildInfo.outOmmIndexBufferSizeInBytes;
 	info.ommIndexHistogramSize = preBuildInfo.outOmmIndexHistogramSizeInBytes;
 	info.ommIndexCount = preBuildInfo.outOmmIndexCount;
@@ -1139,7 +1151,20 @@ void GpuBakeNvrhiImpl::DumpDebug(
 	const uint32_t height
 )
 {
-	const omm::IndexFormat ommIndexBufferFormat = indexBufferFormat == nvrhi::Format::R32_UINT ? omm::IndexFormat::UINT_32 : omm::IndexFormat::UINT_16;
+	omm::IndexFormat ommIndexBufferFormat;
+	if (indexBufferFormat == nvrhi::Format::R8_UINT)
+	{
+		ommIndexBufferFormat = omm::IndexFormat::UINT_8;
+	}
+	else if (indexBufferFormat == nvrhi::Format::R16_UINT) 
+	{
+		ommIndexBufferFormat = omm::IndexFormat::UINT_16;
+	}
+	else
+	{
+		assert(indexBufferFormat == nvrhi::Format::R32_UINT);
+		ommIndexBufferFormat = omm::IndexFormat::UINT_32;
+	}
 
 	omm::Cpu::BakeResultDesc result;
 	result.arrayData = ommArrayBuffer.data();
