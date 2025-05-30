@@ -93,9 +93,10 @@ namespace omm
    {
       UINT_16,
       UINT_32,
+      UINT_8,
+      MAX_NUM,
       I16_UINT OMM_DEPRECATED_MSG("omm::IndexFormat::I16_UINT is deprecated, please use omm::IndexFormat::UINT_16 instead") = UINT_16,
       I32_UINT OMM_DEPRECATED_MSG("omm::IndexFormat::I32_UINT is deprecated, please use omm::IndexFormat::UINT_32 instead") = UINT_32,
-      MAX_NUM,
    };
 
    enum class TextureAddressMode
@@ -217,7 +218,7 @@ namespace omm
          // special indices may still be set.
          DisableSpecialIndices        = 1u << 1,
 
-         // Force 32-bit index format in ommIndexFormat
+         // Force 32-bit index format for the output OMM index buffer
          Force32BitIndices            = 1u << 2,
 
          // Will disable reuse of OMMs and instead produce duplicates omm-array data. Generally only needed for debug purposes.
@@ -235,6 +236,9 @@ namespace omm
          // which may help diagnose omm bake result or longer than expected bake times.
          // *** NOTE messageInterface must be set when using this flag *** 
          EnableValidation             = 1u << 5,
+
+         // Allow 8-bit index format for the output OMM index buffer
+         Allow8BitIndices             = 1u << 6,
 
          EnableWorkloadValidation OMM_DEPRECATED_MSG("EnableWorkloadValidation is deprecated, use EnableValidation instead") = 1u << 5,
       };
@@ -573,7 +577,7 @@ namespace omm
          // up scratch memory.
          DisableTexCoordDeduplication = 1u << 5,
 
-         // Force 32-bit indices in OUT_OMM_INDEX_BUFFER
+         // Force 32-bit index format for the output OMM index buffer
          Force32BitIndices            = 1u << 6,
 
          // Use only for debug purposes. Level Line Intersection method is vastly superior in 4-state mode.
@@ -581,6 +585,9 @@ namespace omm
 
          // Slightly modifies the dispatch to aid frame capture debugging.
          EnableNsightDebugMode        = 1u << 8,
+
+         // Allow 8-bit index format for the output OMM index buffer
+         Allow8BitIndices             = 1u << 9,
       };
       OMM_DEFINE_ENUM_FLAG_OPERATORS(BakeFlags);
 

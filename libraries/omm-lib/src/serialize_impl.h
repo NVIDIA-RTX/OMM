@@ -52,15 +52,16 @@ namespace Cpu
     };
 
     enum Serialize {
-        VERSION = 4
+        VERSION = 5
     };
 
     static inline constexpr int HeaderSizeV1 = sizeof(XXH64_hash_t) + 5 * sizeof(int);
     static inline constexpr int HeaderSizeV2 = sizeof(XXH64_hash_t) + 6 * sizeof(int);
     static inline constexpr int HeaderSizeV3 = HeaderSizeV2;
     static inline constexpr int HeaderSizeV4 = HeaderSizeV3;
+    static inline constexpr int HeaderSizeV5 = HeaderSizeV4;
 
-    static inline constexpr int HeaderSize[] = { HeaderSizeV1, HeaderSizeV2, HeaderSizeV3, HeaderSizeV4 };
+    static inline constexpr int HeaderSize[] = { HeaderSizeV1, HeaderSizeV2, HeaderSizeV3, HeaderSizeV4, HeaderSizeV5 };
     static_assert(sizeof(HeaderSize) / sizeof(int) == VERSION);
 
     static ommResult GetHeaderSize(int version, int& outSize)

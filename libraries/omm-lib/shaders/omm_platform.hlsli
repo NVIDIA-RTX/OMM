@@ -61,6 +61,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #define OMM_SUBRESOURCE_LOAD(subResource, offset) subResource.Load(g_GlobalConstants.subResource##Offset + offset)
 #define OMM_SUBRESOURCE_LOAD2(subResource, offset) subResource.Load2(g_GlobalConstants.subResource##Offset + offset)
 #define OMM_SUBRESOURCE_LOAD3(subResource, offset) subResource.Load3(g_GlobalConstants.subResource##Offset + offset)
+#define OMM_SUBRESOURCE_LOAD4(subResource, offset) subResource.Load4(g_GlobalConstants.subResource##Offset + offset)
 #define OMM_SUBRESOURCE_STORE(subResource, offset, value) subResource.Store(g_GlobalConstants.subResource##Offset + offset, value)
 #define OMM_SUBRESOURCE_STORE2(subResource, offset, value) subResource.Store2(g_GlobalConstants.subResource##Offset + offset, value)
 #define OMM_SUBRESOURCE_STORE3(subResource, offset, value) subResource.Store3(g_GlobalConstants.subResource##Offset + offset, value)

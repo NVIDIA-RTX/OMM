@@ -331,7 +331,14 @@ namespace {
 
 					EXPECT_EQ(resDesc->indexCount, resDescCpy->indexCount);
 					EXPECT_EQ(resDesc->indexFormat, resDescCpy->indexFormat);
-					EXPECT_EQ(memcmp(resDesc->indexBuffer, resDescCpy->indexBuffer, (resDescCpy->indexFormat == omm::IndexFormat::UINT_16 ? 2 : 4) * resDesc->indexCount), 0);
+					size_t indexBufferFormatSize;
+					if (resDescCpy->indexFormat == omm::IndexFormat::UINT_8)
+						indexBufferFormatSize = 1;
+					else if (resDescCpy->indexFormat == omm::IndexFormat::UINT_16)
+						indexBufferFormatSize = 2;
+					else // omm::IndexFormat::UINT_32
+						indexBufferFormatSize = 4;
+					EXPECT_EQ(memcmp(resDesc->indexBuffer, resDescCpy->indexBuffer, indexBufferFormatSize * resDesc->indexCount), 0);
 
 					EXPECT_EQ(resDesc->indexHistogramCount, resDescCpy->indexHistogramCount);
 					EXPECT_EQ(memcmp(resDesc->indexHistogram, resDescCpy->indexHistogram, sizeof(omm::Cpu::OpacityMicromapUsageCount)* resDesc->indexHistogramCount), 0);

@@ -15,8 +15,8 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #include <stddef.h>
 
 #define OMM_VERSION_MAJOR 1
-#define OMM_VERSION_MINOR 7
-#define OMM_VERSION_BUILD 1
+#define OMM_VERSION_MINOR 8
+#define OMM_VERSION_BUILD 0
 
 #define OMM_MAX_TRANSIENT_POOL_BUFFERS 8
 
@@ -152,9 +152,10 @@ typedef enum ommIndexFormat
 {
    ommIndexFormat_UINT_16,
    ommIndexFormat_UINT_32,
+   ommIndexFormat_UINT_8,
+   ommIndexFormat_MAX_NUM,
    ommIndexFormat_I16_UINT OMM_DEPRECATED_MSG("ommIndexFormat_I16_UINT is deprecated, please use ommIndexFormat_UINT_16 instead") = ommIndexFormat_UINT_16,
    ommIndexFormat_I32_UINT OMM_DEPRECATED_MSG("ommIndexFormat_I32_UINT is deprecated, please use ommIndexFormat_UINT_32 instead") = ommIndexFormat_UINT_32,
-   ommIndexFormat_MAX_NUM,
 } ommIndexFormat;
 
 typedef enum ommTextureAddressMode
@@ -306,7 +307,7 @@ typedef enum ommCpuBakeFlags
    // special indices may still be set.
    ommCpuBakeFlags_DisableSpecialIndices        = 1u << 1,
 
-   // Force 32-bit index format in ommIndexFormat
+   // Force 32-bit index format for the output OMM index buffer
    ommCpuBakeFlags_Force32BitIndices            = 1u << 2,
 
    // Will disable reuse of OMMs and instead produce duplicates omm-array data. Generally only needed for debug purposes.
@@ -324,6 +325,9 @@ typedef enum ommCpuBakeFlags
    // which may help diagnose omm bake result or longer than expected bake times.
    // *** NOTE messageInterface must be set when using this flag *** 
    ommCpuBakeFlags_EnableValidation             = 1u << 5,
+
+   // Allow 8-bit index format for the output OMM index buffer
+   ommCpuBakeFlags_Allow8BitIndices             = 1u << 6,
 
    ommCpuBakeFlags_EnableWorkloadValidation OMM_DEPRECATED_MSG("EnableWorkloadValidation is deprecated, use EnableValidation instead") = 1u << 5,
 
@@ -725,7 +729,7 @@ typedef enum ommGpuBakeFlags
    // up scratch memory.
    ommGpuBakeFlags_DisableTexCoordDeduplication = 1u << 5,
 
-   // Force 32-bit indices in OUT_OMM_INDEX_BUFFER
+   // Force 32-bit index format for the output OMM index buffer
    ommGpuBakeFlags_Force32BitIndices            = 1u << 6,
 
    // Use only for debug purposes. Level Line Intersection method is vastly superior in 4-state mode.
@@ -733,6 +737,9 @@ typedef enum ommGpuBakeFlags
 
    // Slightly modifies the dispatch to aid frame capture debugging.
    ommGpuBakeFlags_EnableNsightDebugMode        = 1u << 8,
+
+   // Allow 8-bit index format for the output OMM index buffer
+   ommGpuBakeFlags_Allow8BitIndices             = 1u << 9,
 } ommGpuBakeFlags;
 OMM_DEFINE_ENUM_FLAG_OPERATORS(ommGpuBakeFlags);
 

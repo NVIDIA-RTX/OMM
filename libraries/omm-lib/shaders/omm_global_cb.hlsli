@@ -14,7 +14,7 @@ OMM_CONSTANTS_START(GlobalConstants)							\
 	OMM_CONSTANT(uint, MaxBatchCount)							\
 	OMM_CONSTANT(uint, MaxOutOmmArraySize)						\
 																\
-	OMM_CONSTANT(uint, IsOmmIndexFormat16bit)					\
+	OMM_CONSTANT(uint, OmmIndexFormat)							\
 	OMM_CONSTANT(uint, EnableSpecialIndices)					\
 	OMM_CONSTANT(uint, EnableTexCoordDeduplication)				\
 	OMM_CONSTANT(uint, DoSetup)									\

@@ -411,7 +411,12 @@ namespace {
 			resDesc.descArrayCount = (uint32_t)(ommDescBufferData.size() / sizeof(omm::Cpu::OpacityMicromapDesc));
 			resDesc.indexBuffer = ommIndexBufferData.data();
 			resDesc.indexCount = ommIndexCount;
-			resDesc.indexFormat = ommIndexFormat == nvrhi::Format::R32_UINT ? omm::IndexFormat::UINT_32 : omm::IndexFormat::UINT_16;
+			if (ommIndexFormat == nvrhi::Format::R8_UINT)
+				resDesc.indexFormat = omm::IndexFormat::UINT_8;
+			else if (ommIndexFormat == nvrhi::Format::R16_UINT)
+				resDesc.indexFormat = omm::IndexFormat::UINT_16;
+			else // nvrhi::Format::R32_UINT
+				resDesc.indexFormat = omm::IndexFormat::UINT_32;
 			resDesc.descArrayHistogram = (const omm::Cpu::OpacityMicromapUsageCount*)ommArrayHistogramData.data();
 			resDesc.descArrayHistogramCount = (uint32_t)(ommArrayHistogramData.size() / sizeof(omm::Cpu::OpacityMicromapUsageCount));
 			resDesc.indexHistogram = (const omm::Cpu::OpacityMicromapUsageCount*)ommIndexHistogramData.data();

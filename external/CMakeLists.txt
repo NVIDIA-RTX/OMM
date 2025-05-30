@@ -4,9 +4,8 @@ set (SHADERMAKE_BIN_OUTPUT_PATH "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}" CACHE STRING
 option(BUILD_SHARED_LIBS "" OFF)
 option(LZ4_BUILD_CLI "" OFF)
 
-# donut & nvrhi & lz4
-if (EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/donut)
-
+# donut & nvrhi
+if (EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/donut AND OMM_BUILD_VIEWER)
 	option(DONUT_WITH_AUDIO "" OFF)
 	option(DONUT_WITH_ASSIMP "" OFF)
 	option(DONUT_WITH_DX11 "" OFF)
@@ -25,22 +24,18 @@ if (EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/donut)
 	set_property(TARGET donut_engine PROPERTY FOLDER "External/Donut") 
 	set_property(TARGET donut_render PROPERTY FOLDER "External/Donut") 
 	set_property(TARGET donut_shaders PROPERTY FOLDER "External/Donut") 
+	set_property(TARGET glfw PROPERTY FOLDER "External/GLFW3")
 	set_property(TARGET update_mappings PROPERTY FOLDER "External/GLFW3") 
-
-	if (TARGET nvrhi)
-		set_property(TARGET nvrhi PROPERTY FOLDER "External") 
-	endif()
-
-	if (TARGET nvrhi_d3d12)
-		set_property(TARGET nvrhi_d3d12 PROPERTY FOLDER "External") 
-	endif()
-	if (TARGET nvrhi_vk)
-		set_property(TARGET nvrhi_vk PROPERTY FOLDER "External") 
-	endif()
 
 	set_property(TARGET imgui PROPERTY FOLDER "External")
 	set_property(TARGET jsoncpp_static PROPERTY FOLDER "External")
-	set_property(TARGET glfw PROPERTY FOLDER "External")
+elseif(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/donut/nvrhi AND OMM_INTEGRATION_LAYER_NVRHI)
+	option(NVRHI_INSTALL OFF)
+	set(NVRHI_WITH_SHADER_COMPILER OFF CACHE BOOL "" FORCE)
+	set(NVRHI_WITH_DX11 OFF CACHE BOOL "" FORCE)
+	set(NVRHI_WITH_VULKAN OFF CACHE BOOL "" FORCE)
+	add_subdirectory(donut/nvrhi)
+	target_include_directories(nvrhi PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/donut)
 endif()
 
 # GLM
@@ -92,11 +87,15 @@ endif()
 
 # nvrhi
 if (TARGET nvrhi)
-		set_target_properties(nvrhi PROPERTIES FOLDER "External")
+	set_property(TARGET nvrhi PROPERTY FOLDER "External")
 endif()
 
 if (TARGET nvrhi_d3d12)
-	set_target_properties(nvrhi_d3d12 PROPERTIES FOLDER "External")
+	set_property(TARGET nvrhi_d3d12 PROPERTY FOLDER "External")
+endif()
+
+if (TARGET nvrhi_vk)
+	set_property(TARGET nvrhi_vk PROPERTY FOLDER "External") 
 endif()
 
 # gtest

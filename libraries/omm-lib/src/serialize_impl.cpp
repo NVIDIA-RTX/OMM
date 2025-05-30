@@ -107,8 +107,21 @@ namespace Cpu
         os.write(reinterpret_cast<const char*>(&inputDesc.indexFormat), sizeof(inputDesc.indexFormat));
         os.write(reinterpret_cast<const char*>(&inputDesc.indexCount), sizeof(inputDesc.indexCount));
 
-        static_assert(ommIndexFormat_MAX_NUM == 2);
-        size_t indexBufferSize = inputDesc.indexCount * (inputDesc.indexFormat == ommIndexFormat_UINT_16 ? 2 : 4);
+        static_assert(ommIndexFormat_MAX_NUM == 3);
+        size_t indexBufferSize;
+        if (inputDesc.indexFormat == ommIndexFormat_UINT_8) 
+        {
+            indexBufferSize = inputDesc.indexCount * 1;
+        } 
+        else if (inputDesc.indexFormat == ommIndexFormat_UINT_16) 
+        {
+            indexBufferSize = inputDesc.indexCount * 2;
+        } 
+        else
+        {
+            OMM_ASSERT(inputDesc.indexFormat == ommIndexFormat_UINT_32);
+            indexBufferSize = inputDesc.indexCount * 4;
+        }
         os.write(reinterpret_cast<const char*>(inputDesc.indexBuffer), indexBufferSize);
 
         os.write(reinterpret_cast<const char*>(&inputDesc.dynamicSubdivisionScale), sizeof(inputDesc.dynamicSubdivisionScale));
@@ -153,7 +166,11 @@ namespace Cpu
         WriteArray<ommCpuOpacityMicromapUsageCount>(os, resultDesc.descArrayHistogram, resultDesc.descArrayHistogramCount);
         
         os.write(reinterpret_cast<const char*>(&resultDesc.indexFormat), sizeof(resultDesc.indexFormat));
-        if (resultDesc.indexFormat == ommIndexFormat_UINT_16)
+        if (resultDesc.indexFormat == ommIndexFormat_UINT_8)
+        {
+            WriteArray<uint8_t>(os, (const uint8_t*)resultDesc.indexBuffer, resultDesc.indexCount);
+        }
+        else if (resultDesc.indexFormat == ommIndexFormat_UINT_16)
         {
             WriteArray<uint16_t>(os, (const uint16_t*)resultDesc.indexBuffer, resultDesc.indexCount);
         }
@@ -394,8 +411,21 @@ namespace Cpu
         os.read(reinterpret_cast<char*>(&inputDesc.indexFormat), sizeof(inputDesc.indexFormat));
         os.read(reinterpret_cast<char*>(&inputDesc.indexCount), sizeof(inputDesc.indexCount));
 
-        static_assert(ommIndexFormat_MAX_NUM == 2);
-        const size_t indexBufferSize = inputDesc.indexCount * (inputDesc.indexFormat == ommIndexFormat_UINT_16 ? 2 : 4);
+        static_assert(ommIndexFormat_MAX_NUM == 3);
+        size_t indexBufferSize;
+        if (inputDesc.indexFormat == ommIndexFormat_UINT_8)
+        {
+            indexBufferSize = inputDesc.indexCount * 1;
+        }
+        else if (inputDesc.indexFormat == ommIndexFormat_UINT_16)
+        {
+            indexBufferSize = inputDesc.indexCount * 2;
+        }
+        else
+        {
+            OMM_ASSERT(inputDesc.indexFormat == ommIndexFormat_UINT_32);
+            indexBufferSize = inputDesc.indexCount * 4;
+        }
         uint8_t* indexBuffer = m_stdAllocator.allocate(indexBufferSize, 16);
         os.read(reinterpret_cast<char*>(indexBuffer), indexBufferSize);
         inputDesc.indexBuffer = indexBuffer;
@@ -462,7 +492,11 @@ namespace Cpu
 
         os.read(reinterpret_cast<char*>(&resultDesc.indexFormat), sizeof(resultDesc.indexFormat));
 
-        if (resultDesc.indexFormat == ommIndexFormat_UINT_16)
+        if (resultDesc.indexFormat == ommIndexFormat_UINT_8)
+        {
+            ReadArray<uint8_t>(os, mem, reinterpret_cast<const uint8_t*&>(resultDesc.indexBuffer), resultDesc.indexCount);
+        }
+        else if (resultDesc.indexFormat == ommIndexFormat_UINT_16)
         {
             ReadArray<uint16_t>(os, mem, reinterpret_cast<const uint16_t*&>(resultDesc.indexBuffer), resultDesc.indexCount);
         }

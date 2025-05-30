@@ -398,8 +398,25 @@ private:
         {
             nvrhi::BufferDesc ib;
             ib.debugName = "IndexBuffer";
-            ib.byteSize = input.indexCount * (input.indexFormat == omm::IndexFormat::UINT_32 ? 4 : 2);
-            ib.format = input.indexFormat == omm::IndexFormat::UINT_32 ? nvrhi::Format::R32_UINT : nvrhi::Format::R16_UINT;
+            size_t indexBufferFormatSize;
+            nvrhi::Format indexBufferFormat;
+            if (input.indexFormat == omm::IndexFormat::UINT_8)
+            {
+                indexBufferFormatSize = 1;
+                indexBufferFormat = nvrhi::Format::R8_UINT;
+            }
+            else if (input.indexFormat == omm::IndexFormat::UINT_16)
+            {
+                indexBufferFormatSize = 2;
+                indexBufferFormat = nvrhi::Format::R16_UINT;
+            }
+            else // omm::IndexFormat::UINT_32
+            {
+                indexBufferFormatSize = 4;
+                indexBufferFormat = nvrhi::Format::R32_UINT;
+            }      
+            ib.byteSize = input.indexCount * indexBufferFormatSize;
+            ib.format = indexBufferFormat;
             ib.initialState = nvrhi::ResourceStates::ShaderResource;
             ib.keepInitialState = true;
             ib.isIndexBuffer = true;
@@ -416,7 +433,12 @@ private:
             uint32_t maxTexCoordIndex = 0;
             for (uint32_t i = 0; i < input.indexCount; ++i)
             {
-                if (input.indexFormat == omm::IndexFormat::UINT_16)
+                if (input.indexFormat == omm::IndexFormat::UINT_8)
+                {
+                    uint8_t val = ((uint8_t*)input.indexBuffer)[i];
+                    maxTexCoordIndex = std::max<uint32_t>(maxTexCoordIndex, val);
+                }
+                else if (input.indexFormat == omm::IndexFormat::UINT_16)
                 {
                     uint16_t val = ((uint16_t*)input.indexBuffer)[i];
                     maxTexCoordIndex = std::max<uint32_t>(maxTexCoordIndex, val);
@@ -468,8 +490,21 @@ private:
             ommIB.debugName = "OmmIndexBuffer";
             if (_resultDesc && _resultDesc->indexCount != 0)
             {
-                ommIB.format = _resultDesc->indexFormat == omm::IndexFormat::UINT_32 ? nvrhi::Format::R32_SINT : nvrhi::Format::R16_SINT;
-                ommIB.byteSize = _resultDesc->indexCount * (_resultDesc->indexFormat == omm::IndexFormat::UINT_32 ? 4 : 2);
+                if (_resultDesc->indexFormat == omm::IndexFormat::UINT_8)
+                {
+                    ommIB.format = nvrhi::Format::R8_SINT;
+                    ommIB.byteSize = _resultDesc->indexCount * 1;
+                }
+                else if (_resultDesc->indexFormat == omm::IndexFormat::UINT_16)
+                {
+                    ommIB.format = nvrhi::Format::R16_SINT;
+                    ommIB.byteSize = _resultDesc->indexCount * 2;
+                }
+                else // omm::IndexFormat::UINT_32
+                {
+                    ommIB.format = nvrhi::Format::R32_SINT;
+                    ommIB.byteSize = _resultDesc->indexCount * 4;
+                }
             }
             else
             {
@@ -1510,7 +1545,13 @@ protected:
             if (const omm::Cpu::BakeResultDesc* result = m_app->GetOmmGpuData().GetResult())
             {
                 size_t arrayDataSize = result->arrayDataSize;
-                size_t indexSize = result->indexCount * (result->indexFormat == omm::IndexFormat::UINT_16 ? 2 : 4);
+                size_t indexSize;
+                if (result->indexFormat == omm::IndexFormat::UINT_8)
+                    indexSize = result->indexCount * 1;
+                else if (result->indexFormat == omm::IndexFormat::UINT_16)
+                    indexSize = result->indexCount * 2;
+                else // omm::IndexFormat::UINT_32
+                    indexSize = result->indexCount * 4;
                 size_t descArraySize = result->descArrayCount * sizeof(omm::Cpu::OpacityMicromapDesc);
                 size_t totalSize = arrayDataSize + indexSize + descArraySize;
                 ImGui::Text("Array Data Size %.4f mb (%zu bytes)", arrayDataSize / (1024.f * 1024.f), arrayDataSize);

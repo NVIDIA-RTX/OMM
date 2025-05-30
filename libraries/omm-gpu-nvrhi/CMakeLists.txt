@@ -1,5 +1,5 @@
 
-if (WIN32 AND TARGET nvrhi)
+if (WIN32)
 	option(OMM_INTEGRATION_LAYER_NVRHI "Build nvrhi integration layer" ON)
  	set(EXTRA_LIBS nvrhi_d3d12 d3d12.lib dxgi.lib)
 else()

@@ -42,7 +42,7 @@ namespace {
 			return tex;
 		}
 
-		void Bake(uint32_t triangleCount, bool force32bitIndexFormat, omm::IndexFormat expectedOutput, omm::Result expectedResult) {
+		void Bake(uint32_t triangleCount, bool allow8bitIndices, bool force32bitIndices, omm::IndexFormat expectedOutput, omm::Result expectedResult) {
 
 			const float alphaCutoff = 0.3f;
 			omm::Cpu::Texture tex_04 = 0;
@@ -88,7 +88,10 @@ namespace {
 				(uint32_t)omm::Cpu::BakeFlags::DisableSpecialIndices |
 				(uint32_t)omm::Cpu::BakeFlags::DisableDuplicateDetection);
 
-			if (force32bitIndexFormat)
+			if (allow8bitIndices)
+				desc.bakeFlags = (omm::Cpu::BakeFlags)((uint32_t)omm::Cpu::BakeFlags::Allow8BitIndices | (uint32_t)desc.bakeFlags);
+
+			if (force32bitIndices)
 				desc.bakeFlags = (omm::Cpu::BakeFlags)((uint32_t)omm::Cpu::BakeFlags::Force32BitIndices | (uint32_t)desc.bakeFlags);
 
 			desc.dynamicSubdivisionScale = 0.f;
@@ -117,80 +120,115 @@ namespace {
 
 	// Any
 	TEST_F(BakeIndexing, TriangleCount_1) {
-		Bake(1, false /*force32bitIndices*/,
+		Bake(1, false /*allow8bitIndices*/, false /*force32bitIndices*/,
+			omm::IndexFormat::UINT_16, omm::Result::SUCCESS);
+	}
+
+	TEST_F(BakeIndexing, TriangleCount_127) {
+		Bake(127, false /*allow8bitIndices*/, false /*force32bitIndices*/,
+			omm::IndexFormat::UINT_16, omm::Result::SUCCESS);
+	}
+
+	TEST_F(BakeIndexing, TriangleCount_128) {
+		Bake(128, false /*allow8bitIndices*/, false /*force32bitIndices*/,
 			omm::IndexFormat::UINT_16, omm::Result::SUCCESS);
 	}
 
 	TEST_F(BakeIndexing, TriangleCount_32766) {
-		Bake(32766, false /*force32bitIndices*/,
+		Bake(32766, false /*allow8bitIndices*/, false /*force32bitIndices*/,
 			omm::IndexFormat::UINT_16, omm::Result::SUCCESS);
 	}
 
 	TEST_F(BakeIndexing, TriangleCount_32767) {
-		Bake(32767, false /*force32bitIndices*/,
+		Bake(32767, false /*allow8bitIndices*/, false /*force32bitIndices*/,
 			omm::IndexFormat::UINT_16, omm::Result::SUCCESS);
 	}
 
 	TEST_F(BakeIndexing, TriangleCount_32768) {
-		Bake(32768, false /*force32bitIndices*/,
+		Bake(32768, false /*allow8bitIndices*/, false /*force32bitIndices*/,
 			omm::IndexFormat::UINT_32, omm::Result::SUCCESS);
 	}
 
 	TEST_F(BakeIndexing, TriangleCount_65536) {
-		Bake(65536, false /*force32bitIndices*/,
+		Bake(65536, false /*allow8bitIndices*/, false /*force32bitIndices*/,
 			omm::IndexFormat::UINT_32, omm::Result::SUCCESS);
 	}
 
-	// forceI32
+	// ForceI32
 	TEST_F(BakeIndexing, TriangleCount_1_ForceI32) {
-		Bake(1, true /*force32bitIndices*/,
+		Bake(1, false /*allow8bitIndices*/, true /*force32bitIndices*/,
+			omm::IndexFormat::UINT_32, omm::Result::SUCCESS);
+	}
+
+	TEST_F(BakeIndexing, TriangleCount_127_ForceI32) {
+		Bake(127, false /*allow8bitIndices*/, true /*force32bitIndices*/,
+			omm::IndexFormat::UINT_32, omm::Result::SUCCESS);
+	}
+
+	TEST_F(BakeIndexing, TriangleCount_128_ForceI32) {
+		Bake(128, false /*allow8bitIndices*/, true /*force32bitIndices*/,
 			omm::IndexFormat::UINT_32, omm::Result::SUCCESS);
 	}
 
 	TEST_F(BakeIndexing, TriangleCount_32766_ForceI32) {
-		Bake(32766, true /*force32bitIndices*/,
+		Bake(32766, false /*allow8bitIndices*/, true /*force32bitIndices*/,
 			omm::IndexFormat::UINT_32, omm::Result::SUCCESS);
 	}
 
 	TEST_F(BakeIndexing, TriangleCount_32767_ForceI32) {
-		Bake(32767, true /*force32bitIndices*/,
+		Bake(32767, false /*allow8bitIndices*/, true /*force32bitIndices*/,
 			omm::IndexFormat::UINT_32, omm::Result::SUCCESS);
 	}
 
 	TEST_F(BakeIndexing, TriangleCount_32768_ForceI32) {
-		Bake(32768, true /*force32bitIndices*/,
+		Bake(32768, false /*allow8bitIndices*/, true /*force32bitIndices*/,
 			omm::IndexFormat::UINT_32, omm::Result::SUCCESS);
 	}
 
 	TEST_F(BakeIndexing, TriangleCount_65536_ForceI32) {
-		Bake(65536, false /*force32bitIndices*/, 
+		Bake(65536, false /*allow8bitIndices*/, false /*force32bitIndices*/, 
 			omm::IndexFormat::UINT_32, omm::Result::SUCCESS);
 	}
 
-	// PreferI16
-	TEST_F(BakeIndexing, TriangleCount_1_ForceI16) {
-		Bake(1, false /*force32bitIndices*/,
-			omm::IndexFormat::UINT_16, omm::Result::SUCCESS);
+	// AllowI8
+	TEST_F(BakeIndexing, TriangleCount_1_AllowI8) {
+		Bake(1, true /*allow8bitIndices*/, false /*force32bitIndices*/,
+			omm::IndexFormat::UINT_8, omm::Result::SUCCESS);
 	}
 
-	TEST_F(BakeIndexing, TriangleCount_32766_ForceI16) {
-		Bake(32766, false /*force32bitIndices*/,
-			omm::IndexFormat::UINT_16, omm::Result::SUCCESS);
+	TEST_F(BakeIndexing, TriangleCount_127_AllowI8) {
+		Bake(127, true /*allow8bitIndices*/, false /*force32bitIndices*/,
+			omm::IndexFormat::UINT_8, omm::Result::SUCCESS);
 	}
 
-	TEST_F(BakeIndexing, TriangleCount_32767_ForceI16) {
-		Bake(32767, false /*force32bitIndices*/,
+	TEST_F(BakeIndexing, TriangleCount_32766_AllowI8) {
+		Bake(32766, true /*allow8bitIndices*/, false /*force32bitIndices*/,
 			omm::IndexFormat::UINT_16, omm::Result::SUCCESS);
 	}
-
-	TEST_F(BakeIndexing, TriangleCount_32768_ForceI16) {
-		Bake(32768, false /*force32bitIndices*/,
+	
+	TEST_F(BakeIndexing, TriangleCount_65536_AllowI8) {
+		Bake(65536, true /*allow8bitIndices*/, false /*force32bitIndices*/,
 			omm::IndexFormat::UINT_32, omm::Result::SUCCESS);
 	}
 
-	TEST_F(BakeIndexing, TriangleCount_65536_ForceI16) {
-		Bake(65536, false /*force32bitIndices*/,
+	TEST_F(BakeIndexing, TriangleCount_1_AllowI8_ForceI32) {
+		Bake(1, true /*allow8bitIndices*/, true /*force32bitIndices*/,
 			omm::IndexFormat::UINT_32, omm::Result::SUCCESS);
 	}
 
+	TEST_F(BakeIndexing, TriangleCount_127_AllowI8_ForceI32) {
+		Bake(127, true /*allow8bitIndices*/, true /*force32bitIndices*/,
+			omm::IndexFormat::UINT_32, omm::Result::SUCCESS);
+	}
+
+	TEST_F(BakeIndexing, TriangleCount_32766_AllowI8_ForceI32) {
+		Bake(32766, true /*allow8bitIndices*/, true /*force32bitIndices*/,
+			omm::IndexFormat::UINT_32, omm::Result::SUCCESS);
+	}
+	
+	TEST_F(BakeIndexing, TriangleCount_65536_AllowI8_ForceI32) {
+		Bake(65536, true /*allow8bitIndices*/, true /*force32bitIndices*/,
+			omm::IndexFormat::UINT_32, omm::Result::SUCCESS);
+	}
+	
 }  // namespace
