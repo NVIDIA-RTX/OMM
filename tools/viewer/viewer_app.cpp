@@ -903,11 +903,18 @@ private:
 
             m_pixelReadback = std::make_shared<donut::render::PixelReadbackPass>(GetDevice(), m_ShaderFactory, m_ReadbackTexture.Get(), nvrhi::Format::RGBA32_FLOAT);
 
-            m_VertexShader = m_ShaderFactory->CreateStaticPlatformShader(DONUT_MAKE_PLATFORM_SHADER(g_shaders_main_vs), nullptr, nvrhi::ShaderType::Vertex);
-            m_PixelShader = m_ShaderFactory->CreateStaticPlatformShader(DONUT_MAKE_PLATFORM_SHADER(g_shaders_main_ps), nullptr, nvrhi::ShaderType::Pixel);
+            auto CreateStaticPlatformShader = [this] (donut::engine::StaticShader dxbc, donut::engine::StaticShader dxil, donut::engine::StaticShader spirv, nvrhi::ShaderType shaderType, const char* entryName)
+            {
+                nvrhi::ShaderDesc shaderDesc(shaderType);
+                shaderDesc.entryName = entryName;
+                return m_ShaderFactory->CreateStaticPlatformShader(dxbc, dxil, spirv, nullptr, shaderDesc);
+            };
 
-            m_BackgroundVS = m_ShaderFactory->CreateStaticPlatformShader(DONUT_MAKE_PLATFORM_SHADER(g_background_vs_ps_main_vs), nullptr, nvrhi::ShaderType::Vertex);
-            m_BackgroundPS = m_ShaderFactory->CreateStaticPlatformShader(DONUT_MAKE_PLATFORM_SHADER(g_background_vs_ps_main_ps), nullptr, nvrhi::ShaderType::Pixel);
+            m_VertexShader = CreateStaticPlatformShader(DONUT_MAKE_PLATFORM_SHADER(g_shaders_main_vs), nvrhi::ShaderType::Vertex, "main_vs");
+            m_PixelShader = CreateStaticPlatformShader(DONUT_MAKE_PLATFORM_SHADER(g_shaders_main_ps), nvrhi::ShaderType::Pixel, "main_ps");
+
+            m_BackgroundVS = CreateStaticPlatformShader(DONUT_MAKE_PLATFORM_SHADER(g_background_vs_ps_main_vs), nvrhi::ShaderType::Vertex, "main_vs");
+            m_BackgroundPS = CreateStaticPlatformShader(DONUT_MAKE_PLATFORM_SHADER(g_background_vs_ps_main_ps), nvrhi::ShaderType::Pixel, "main_ps");
 
             m_ConstantBuffer = GetDevice()->createBuffer(nvrhi::utils::CreateVolatileConstantBufferDesc(sizeof(Constants), "Constants", 16));
 
