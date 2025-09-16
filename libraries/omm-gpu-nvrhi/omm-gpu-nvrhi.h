@@ -70,7 +70,8 @@ namespace omm
 			uint32_t							texCoordBufferOffsetInBytes = 0;
 			uint32_t							texCoordStrideInBytes = 0;
 			nvrhi::BufferHandle					indexBuffer;
-			uint32_t							indexBufferOffsetInBytes = 0;
+			uint32_t							indexOffset = 0;
+			uint32_t							indexBufferOffsetInBytes = 0; // _byte_ offset when creating the input descriptor (indexOffset is preferred, this is kept for backwards comp.)
 			uint32_t							numIndices = 0;
 
 			uint32_t							maxSubdivisionLevel = 0;

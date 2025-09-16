@@ -724,6 +724,7 @@ ommResult PipelineImpl::InitGlobalConstants(const ommGpuDispatchConfigDesc& conf
 
     cbuffer = {0, };
     cbuffer.IndexCount                                 = config.indexCount;
+    cbuffer.IndexOffset                                = config.indexOffset;
     cbuffer.PrimitiveCount                             = primitiveCount;
     cbuffer.MaxBatchCount                              = info.MaxBatchCount;
     cbuffer.MaxOutOmmArraySize                         = preBuildInfo.outOmmArraySizeInBytes;
