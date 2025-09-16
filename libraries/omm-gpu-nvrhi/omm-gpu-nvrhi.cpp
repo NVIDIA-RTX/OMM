@@ -478,15 +478,19 @@ void GpuBakeNvrhiImpl::SetupPipelines(
 			{
 			case omm::Gpu::DescriptorType::TextureRead:
 				resourceItem.type = nvrhi::ResourceType::Texture_SRV;
+				resourceItem.size = 1;
 				break;
 			case omm::Gpu::DescriptorType::RawBufferRead:
 				resourceItem.type = nvrhi::ResourceType::RawBuffer_SRV;
+				resourceItem.size = 1;
 				break;
 			case omm::Gpu::DescriptorType::RawBufferWrite:
 				resourceItem.type = nvrhi::ResourceType::RawBuffer_UAV;
+				resourceItem.size = 1;
 				break;
 			case omm::Gpu::DescriptorType::BufferRead:
 				resourceItem.type = nvrhi::ResourceType::TypedBuffer_SRV;
+				resourceItem.size = 1;
 				break;
 			default:
 				assert(!"Unknown NRD descriptor type");
