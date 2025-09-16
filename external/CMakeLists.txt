@@ -30,12 +30,21 @@ if (EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/donut AND OMM_BUILD_VIEWER)
 	set_property(TARGET imgui PROPERTY FOLDER "External")
 	set_property(TARGET jsoncpp_static PROPERTY FOLDER "External")
 elseif(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/donut/nvrhi AND OMM_INTEGRATION_LAYER_NVRHI)
-	option(NVRHI_INSTALL OFF)
-	set(NVRHI_WITH_SHADER_COMPILER OFF CACHE BOOL "" FORCE)
-	set(NVRHI_WITH_DX11 OFF CACHE BOOL "" FORCE)
-	set(NVRHI_WITH_VULKAN OFF CACHE BOOL "" FORCE)
-	add_subdirectory(donut/nvrhi)
-	target_include_directories(nvrhi PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/donut)
+	if(NOT TARGET nvrhi)
+		option(NVRHI_INSTALL OFF)
+		set(NVRHI_WITH_SHADER_COMPILER OFF CACHE BOOL "" FORCE)
+		set(NVRHI_WITH_DX11 OFF CACHE BOOL "" FORCE)
+		set(NVRHI_WITH_VULKAN OFF CACHE BOOL "" FORCE)
+		add_subdirectory(donut/nvrhi)
+		target_include_directories(nvrhi PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/donut)
+	endif()
+endif()
+
+if(TARGET DirectX-Guids)
+	set_property(TARGET DirectX-Guids PROPERTY FOLDER "External/DirectX-Guids")
+endif()
+if(TARGET DirectX-Headers)
+	set_property(TARGET DirectX-Headers PROPERTY FOLDER "External/DirectX-Headers") 
 endif()
 
 # GLM
@@ -65,7 +74,7 @@ endif()
 
 # xxHash
 set(XXHASH_BUILD_XXHSUM OFF)
-add_subdirectory("xxHash/cmake_unofficial")
+add_subdirectory("xxHash/build/cmake")
 set_property(TARGET xxhash PROPERTY FOLDER "External") 
 
 # stb

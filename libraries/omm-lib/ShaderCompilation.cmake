@@ -42,8 +42,8 @@ function(compile_shaders)
     endif()
 
     if (params_DXIL)
-        if (NOT DXC_PATH)
-            message(FATAL_ERROR "compile_shaders: DXC not found --- please set DXC_PATH to the full path to the DXC binary")
+        if (NOT SHADERMAKE_DXC_PATH)
+            message(FATAL_ERROR "compile_shaders: DXC not found --- please set SHADERMAKE_DXC_PATH to the full path to the DXC binary")
         endif()
 
         if (NOT params_CFLAGS)
@@ -57,15 +57,15 @@ function(compile_shaders)
                                    --header
                                    --config=${params_CONFIG}
                                    --out ${params_DXIL}
-                                   --compiler ${DXC_PATH}
+                                   --compiler ${SHADERMAKE_DXC_PATH}
                                    --platform=DXIL
                                    ${INCLUDE_PATH}
                                    )
     endif()
 
     if (params_SPIRV)
-        if (NOT DXC_SPIRV_PATH)
-            message(FATAL_ERROR "compile_shaders: DXC for SPIR-V not found --- please set DXC_SPIRV_PATH to the full path to the DXC binary")
+        if (NOT SHADERMAKE_DXC_VK_PATH)
+            message(FATAL_ERROR "compile_shaders: DXC for SPIR-V not found --- please set SHADERMAKE_DXC_VK_PATH to the full path to the DXC binary")
         endif()
 
         if (NOT params_CFLAGS)
@@ -80,7 +80,7 @@ function(compile_shaders)
                                     --vulkanVersion=1.2
                                     --config=${params_CONFIG}
                                     --out ${params_SPIRV}
-                                    --compiler ${DXC_SPIRV_PATH}
+                                    --compiler ${SHADERMAKE_DXC_VK_PATH}
                                     --platform=SPIRV
                                     --sRegShift=${OMM_VK_S_SHIFT}
                                     --tRegShift=${OMM_VK_T_SHIFT}
