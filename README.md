@@ -1,8 +1,12 @@
 [![Build Opacity Micro-Map SDK](https://github.com/NVIDIAGameWorks/Opacity-MicroMap-SDK/actions/workflows/build.yml/badge.svg?branch=main&event=push)](https://github.com/NVIDIAGameWorks/Opacity-MicroMap-SDK/actions/workflows/build.yml)
 
+# New in 1.8.0: Official DXR 1.2 support
+
+Check out the sample app at [https://github.com/NVIDIA-RTX/OMM-Samples](https://github.com/NVIDIA-RTX/OMM-Samples) for a demonstration of OMM SDK usage with DXR 1.2 and Agility SDK version 1.616.
+
 # New in 1.7.0: Opacity Micro-Map Viewer Tool
 
-Version 1.7.0 introcuces the new Opacity Micro-Map Viewer Tool
+Version 1.7.0 introduces the new Opacity Micro-Map Viewer Tool
 <p align="center">
     <img src="docs/images/viewer/viewer.png" width=100% height=auto  alt="varying triangle subdivision levels">
 </p>
