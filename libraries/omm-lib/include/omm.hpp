@@ -828,6 +828,7 @@ namespace omm
          IndexFormat         indexFormat                   = IndexFormat::MAX_NUM;
          // The actual number of indices can be lower.
          uint32_t            indexCount                    = 0;
+         uint32_t            indexOffset                   = 0;
          // If zero packed aligment is assumed.
          uint32_t            indexStrideInBytes            = 0;
          // The alpha cutoff value. By default it's Texel Opacity = texture > alphaCutoff ? Opaque : Transparent

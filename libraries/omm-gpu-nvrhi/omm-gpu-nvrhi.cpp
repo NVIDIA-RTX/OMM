@@ -82,6 +82,24 @@ namespace
 		}
 	}
 
+	static omm::IndexFormat GetIndexFormat(nvrhi::Format format)
+	{
+		switch (format)
+		{
+		case nvrhi::Format::R16_UINT:
+		{
+			return omm::IndexFormat::UINT_16;
+		}
+		case nvrhi::Format::R32_UINT:
+		{
+			return omm::IndexFormat::UINT_32;
+		}
+		default:
+			assert(false);
+			return omm::IndexFormat::MAX_NUM;
+		}
+	}
+
 	/// -- BINDING CACHE FROM DONUT -- 
 
 	/*
@@ -679,8 +697,9 @@ omm::Gpu::DispatchConfigDesc GpuBakeNvrhiImpl::GetConfig(const GpuBakeNvrhi::Inp
 	config.texCoordFormat						= GetTexCoordFormat(params.texCoordFormat);
 	config.texCoordOffsetInBytes				= params.texCoordBufferOffsetInBytes;
 	config.texCoordStrideInBytes				= params.texCoordStrideInBytes;
-	config.indexFormat							= IndexFormat::UINT_32;
+	config.indexFormat							= GetIndexFormat(params.indexBuffer->getDesc().format);
 	config.indexCount							= (uint32_t)params.numIndices;
+	config.indexOffset							= params.indexOffset;
 	config.globalFormat							= params.format == nvrhi::rt::OpacityMicromapFormat::OC1_2_State ? Format::OC1_2_State : Format::OC1_4_State;
 	config.maxScratchMemorySize					= params.minimalMemoryMode ? Gpu::ScratchMemoryBudget::MB_4 : Gpu::ScratchMemoryBudget::MB_256;
 	config.maxOutOmmArraySize				    = params.maxOutOmmArraySize;

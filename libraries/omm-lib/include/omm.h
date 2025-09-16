@@ -15,7 +15,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #include <stddef.h>
 
 #define OMM_VERSION_MAJOR 1
-#define OMM_VERSION_MINOR 8
+#define OMM_VERSION_MINOR 9
 #define OMM_VERSION_BUILD 0
 
 #define OMM_MAX_TRANSIENT_POOL_BUFFERS 8
@@ -1013,6 +1013,7 @@ typedef struct ommGpuDispatchConfigDesc
    ommIndexFormat            indexFormat;
    // The actual number of indices can be lower.
    uint32_t                  indexCount;
+   uint32_t                  indexOffset;
    // If zero packed aligment is assumed.
    uint32_t                  indexStrideInBytes;
    // The alpha cutoff value. By default it's Texel Opacity = texture > alphaCutoff ? Opaque : Transparent
@@ -1067,6 +1068,7 @@ inline ommGpuDispatchConfigDesc ommGpuDispatchConfigDescDefault()
    v.texCoordStrideInBytes         = 0;
    v.indexFormat                   = ommIndexFormat_MAX_NUM;
    v.indexCount                    = 0;
+   v.indexOffset                   = 0;
    v.indexStrideInBytes            = 0;
    v.alphaCutoff                   = 0.5f;
    v.alphaCutoffLessEqual          = ommOpacityState_Transparent;

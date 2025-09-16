@@ -118,9 +118,9 @@ float2 UnpackFP16Pair(uint packed)
 TexCoords FetchTexCoords(Buffer<uint> indexBuffer, ByteAddressBuffer texCoordBuffer, uint primitiveIndex)
 {
 	uint3 indices;
-	indices.x		= indexBuffer[primitiveIndex * 3 + 0];
-	indices.y		= indexBuffer[primitiveIndex * 3 + 1];
-	indices.z		= indexBuffer[primitiveIndex * 3 + 2];
+	indices.x		= indexBuffer[g_GlobalConstants.IndexOffset + primitiveIndex * 3 + 0];
+	indices.y		= indexBuffer[g_GlobalConstants.IndexOffset + primitiveIndex * 3 + 1];
+	indices.z		= indexBuffer[g_GlobalConstants.IndexOffset + primitiveIndex * 3 + 2];
 
 	float2 vertexUVs[3];
 	
