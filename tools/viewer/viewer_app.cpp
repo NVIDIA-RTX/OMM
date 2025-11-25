@@ -618,6 +618,8 @@ private:
         input.indexBuffer = _input.indexBuffer;
         input.indexCount = _input.indexCount;
 
+        input.formats = _input.formats;
+
         input.subdivisionLevels = _input.subdivisionLevels;
         
         omm::Cpu::TextureMipDesc mips[16];

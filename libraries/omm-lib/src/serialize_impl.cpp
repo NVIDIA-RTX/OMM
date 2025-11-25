@@ -131,7 +131,7 @@ namespace Cpu
         os.write(reinterpret_cast<const char*>(&inputDesc.alphaCutoffGreater), sizeof(inputDesc.alphaCutoffGreater));
         os.write(reinterpret_cast<const char*>(&inputDesc.format), sizeof(inputDesc.format));
 
-        size_t numFormats = inputDesc.formats == nullptr ? 0 : inputDesc.indexCount;
+        size_t numFormats = inputDesc.formats == nullptr ? 0 : inputDesc.indexCount / 3;
         os.write(reinterpret_cast<const char*>(&numFormats), sizeof(numFormats));
 
         if (numFormats != 0)
