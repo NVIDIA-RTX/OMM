@@ -138,7 +138,7 @@ namespace omm
         {
             if (m_tilingMode == TilingMode::Linear)
             {
-                const size_t kDefaultRowPitch = sizePerPixel * desc.mips[mipIt].width;
+                const size_t kDefaultRowPitch = desc.mips[mipIt].width;
                 const size_t srcRowPitch = desc.mips[mipIt].rowPitch == 0 ? kDefaultRowPitch : desc.mips[mipIt].rowPitch;
 
                 if (kDefaultRowPitch == srcRowPitch)
@@ -156,7 +156,7 @@ namespace omm
                     for (uint32_t rowIt = 0; rowIt < desc.mips[mipIt].height; rowIt++)
                     {
                         uint8_t* dst = dstBegin + rowIt * dstRowPitch;
-                        const uint8_t* src = srcBegin + rowIt * srcRowPitch;
+                        const uint8_t* src = srcBegin + rowIt * (sizePerPixel * srcRowPitch);
                         std::memcpy(dst, src, dstRowPitch);
                     }
                 }

@@ -31,12 +31,12 @@ namespace {
 
 	enum TestSuiteConfig
 	{
-		Default,
-		TextureDisableZOrder,
-		Force32BitIndices,
-		TextureAsUNORM8,
-		AlphaCutoff,
-		Serialize,
+		Default					= 1 << 0,
+		TextureDisableZOrder	= 1 << 1,
+		Force32BitIndices		= 1 << 2,
+		TextureAsUNORM8			= 1 << 3,
+		AlphaCutoff				= 1 << 4,
+		Serialize				= 1 << 5,
 	};
 
 	struct Options
@@ -59,6 +59,7 @@ namespace {
 		bool serializeCompress = false;
 		omm::SpecialIndex unresolvedTriState = omm::SpecialIndex::FullyUnknownOpaque;
 		float dynamicSubdivisionScale = 0.f;
+		omm::Format* formats = nullptr;
 	};
 
 	static float StandardCircle(int i, int j, int w, int h, int mip)
@@ -181,6 +182,7 @@ namespace {
 			omm::Cpu::BakeInputDesc desc;
 			desc.texture = tex;
 			desc.format = opt.format;
+			desc.formats = opt.formats;
 			desc.alphaMode = omm::AlphaMode::Test;
 			desc.runtimeSamplerDesc.addressingMode = opt.addressingMode;
 			desc.runtimeSamplerDesc.filter = omm::TextureFilterMode::Linear;
@@ -372,13 +374,40 @@ namespace {
 				std::string fileName = name + "_" + tname;
 				std::replace(fileName.begin(), fileName.end(), '/', '_');
 
-				omm::Debug::SaveAsImages(_baker, desc, resDesc, 
-					{	.path = "OmmBakeOutput", 
-						.filePostfix = fileName.c_str(), 
-						.detailedCutout = opt.detailedCutout,
-						.dumpOnlyFirstOMM = false,
-						.monochromeUnknowns = opt.monochromeUnknowns,
-						.oneFile = opt.oneFile });
+				// save .png for inspection in any png viewer
+				{
+					omm::Debug::SaveAsImages(_baker, desc, resDesc,
+						{ .path = "OmmBakeOutput",
+							.filePostfix = fileName.c_str(),
+							.detailedCutout = opt.detailedCutout,
+							.dumpOnlyFirstOMM = false,
+							.monochromeUnknowns = opt.monochromeUnknowns,
+							.oneFile = opt.oneFile });
+				}
+
+				// save .bin for inspection in viewer
+				{
+					omm::Cpu::DeserializedDesc dataToSerialize;
+					dataToSerialize.numInputDescs = 1;
+					dataToSerialize.inputDescs = &desc;
+					dataToSerialize.flags = opt.serializeCompress ? omm::Cpu::SerializeFlags::Compress : omm::Cpu::SerializeFlags::None;
+
+					// Serialize...
+					omm::Cpu::SerializedResult serializedRes = 0;
+					EXPECT_EQ(omm::Cpu::Serialize(_baker, dataToSerialize, &serializedRes), omm::Result::SUCCESS);
+					EXPECT_NE(serializedRes, nullptr);
+
+					// Get data blob
+					const omm::Cpu::BlobDesc* blob = nullptr;
+					EXPECT_EQ(omm::Cpu::GetSerializedResultDesc(serializedRes, &blob), omm::Result::SUCCESS);
+
+					std::string binaryFile = "OmmBakeOutput/" + fileName + ".bin";
+					EXPECT_EQ(omm::Debug::SaveBinaryToDisk(_baker, *blob, binaryFile.c_str()), omm::Result::SUCCESS);
+
+					// Destroy
+					EXPECT_EQ(omm::Cpu::DestroySerializedResult(serializedRes), omm::Result::SUCCESS);
+				}
+
 			}
 
 			// Manually collected stats from parsing the 
@@ -741,6 +770,97 @@ namespace {
 				return 1.f - mips[w * j + i];
 
 				}, { .format = omm::Format::OC1_4_State, .unknownStatePromotion = omm::UnknownStatePromotion::Nearest, .enableSpecialIndices = false, .oneFile = true, .detailedCutout = false, .maxWorkloadSize = maxWorkloadSize, .bakeResult = bakeResult });
+
+			return stats;
+		}
+
+		void BuildGridTessellation(
+			uint32_t N, uint32_t M,
+			std::vector<uint32_t>& outIndices,
+			std::vector<float>& outTexCoords)
+		{
+			const uint32_t vertCountX = N + 1;
+			const uint32_t vertCountY = M + 1;
+
+			// ---- Create UVs ----
+			outTexCoords.resize(vertCountX * vertCountY * 2);
+
+			for (uint32_t y = 0; y < vertCountY; ++y)
+			{
+				for (uint32_t x = 0; x < vertCountX; ++x)
+				{
+					float u = float(x) / N;
+					float v = float(y) / M;
+
+					outTexCoords[(y * vertCountX + x) * 2 + 0] = u;
+					outTexCoords[(y * vertCountX + x) * 2 + 1] = v;
+				}
+			}
+
+			// ---- Create triangle indices ----
+			outIndices.clear();
+			outIndices.reserve(N * M * 6);
+
+			for (uint32_t y = 0; y < M; ++y)
+			{
+				for (uint32_t x = 0; x < N; ++x)
+				{
+					uint32_t v0 = y * vertCountX + x;
+					uint32_t v1 = v0 + 1;
+					uint32_t v2 = v0 + vertCountX;
+					uint32_t v3 = v2 + 1;
+
+					// Two triangles per quad:
+					//
+					//  v0 ---- v1
+					//   |    / |
+					//   |   /  |
+					//  v2 ---- v3
+
+					outIndices.push_back(v0);
+					outIndices.push_back(v1);
+					outIndices.push_back(v3);
+
+					outIndices.push_back(v0);
+					outIndices.push_back(v3);
+					outIndices.push_back(v2);
+				}
+			}
+		}
+
+
+		omm::Debug::Stats LeafletHighTess(const int N, const int M, omm::Format* formats = nullptr, uint64_t maxWorkloadSize = 0xFFFFFFFFFFFFFFFF, omm::Result bakeResult = omm::Result::SUCCESS)
+		{
+			int subdivisionLevel = 4;
+			uint32_t numMicroTris = omm::bird::GetNumMicroTriangles(subdivisionLevel);
+
+			std::vector<uint32_t> triangleIndices;
+			std::vector<float> texCoords;
+			BuildGridTessellation(N, M, triangleIndices, texCoords);
+
+			int width, height, channels;
+			unsigned char* pixelData = stbi_load(PROJECT_SOURCE_DIR "/assets/tests/leaflet.png", &width, &height, &channels, 0);
+
+			std::vector<float> mips;
+
+			for (int j = 0; j < height; j++)
+			{
+				for (int i = 0; i < width; i++)
+				{
+					uint8_t* pixel = pixelData + j * width * channels + channels * i + 2;
+					mips.push_back(*pixel / 255.f);
+				}
+			}
+
+			Options opt = { .format = omm::Format::OC1_4_State, .unknownStatePromotion = omm::UnknownStatePromotion::Nearest, .enableSpecialIndices = true, .oneFile = true, .detailedCutout = false, .maxWorkloadSize = maxWorkloadSize, .bakeResult = bakeResult };
+			opt.formats = formats;
+
+			int2 size = { width, height };
+			omm::Debug::Stats stats = GetOmmBakeStatsFP32(0.5f, subdivisionLevel, size, (uint32_t)triangleIndices.size(), triangleIndices.data(), omm::TexCoordFormat::UV32_FLOAT, texCoords.data(), [mips](int i, int j, int w, int h, int mip)->float {
+
+				return 1.f - mips[w * j + i];
+
+				}, opt);
 
 			return stats;
 		}
@@ -1923,6 +2043,77 @@ namespace {
 			});
 	}
 
+	TEST_P(OMMBakeTestCPU, LeafletHighTess) {
+
+		int N = 4;
+		int M = 4;
+
+		omm::Debug::Stats stats = LeafletHighTess(N, M);
+
+		ExpectEqual(stats, {
+			.totalOpaque = 1316,
+			.totalTransparent = 3827,
+			.totalUnknownTransparent = 465,
+			.totalUnknownOpaque = 536,
+			.totalFullyTransparent = 8,
+			});
+	}
+
+	TEST_P(OMMBakeTestCPU, LeafletHighTessFormatOverride_0) {
+
+		int N = 4;
+		int M = 4;
+		std::vector<omm::Format> formats;
+		for (int m = 0; m < M; m++)
+		{
+			for (int n = 0; n < 2 * N; n++)
+			{
+				if (n % 2 == 0)
+					formats.push_back(omm::Format::OC1_2_State);
+				else
+					formats.push_back(omm::Format::OC1_4_State);
+			}
+		}
+
+		omm::Debug::Stats stats = LeafletHighTess(N, M, formats.data());
+
+		ExpectEqual(stats, {
+			.totalOpaque = 1587,
+			.totalTransparent = 4067,
+			.totalUnknownTransparent = 225,
+			.totalUnknownOpaque = 265,
+			.totalFullyTransparent = 8,
+			});
+	}
+
+
+	TEST_P(OMMBakeTestCPU, LeafletHighTessFormatOverride_1) {
+
+		int N = 4;
+		int M = 4;
+		std::vector<omm::Format> formats;
+		for (int m = 0; m < M; m++)
+		{
+			for (int n = 0; n < 2 * N; n++)
+			{
+				if (n % 2 == 0)
+					formats.push_back(omm::Format::INVALID);
+				else
+					formats.push_back(omm::Format::OC1_2_State);
+			}
+		}
+
+		omm::Debug::Stats stats = LeafletHighTess(N, M, formats.data());
+
+		ExpectEqual(stats, {
+			.totalOpaque = 1581,
+			.totalTransparent = 4052,
+			.totalUnknownTransparent = 240,
+			.totalUnknownOpaque = 271,
+			.totalFullyTransparent = 8,
+			});
+	}
+
 	TEST_P(OMMBakeTestCPU, LeafletLevel1) {
 
 		omm::Debug::Stats stats = LeafletLevelN(1);
@@ -2573,6 +2764,8 @@ namespace {
 			str += "TextureAsUNORM8_";
 		if ((info.param & TestSuiteConfig::AlphaCutoff) == TestSuiteConfig::AlphaCutoff)
 			str += "AlphaCutoff_";
+		if ((info.param & TestSuiteConfig::Serialize) == TestSuiteConfig::Serialize)
+			str += "Serialize_";
 		if (str.length() > 0)
 			str.pop_back();
 		return str;
