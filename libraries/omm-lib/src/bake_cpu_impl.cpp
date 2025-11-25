@@ -904,12 +904,12 @@ namespace Cpu
                                             }
 
                                             OMM_ASSERT(vmCoverage.numAboveAlpha != 0 || vmCoverage.numBelowAlpha != 0);
-                                            const ommOpacityState state = GetStateFromCoverage(desc.format, desc.unknownStatePromotion, desc.alphaCutoffGreater, desc.alphaCutoffLessEqual, vmCoverage);
+                                            const ommOpacityState state = GetStateFromCoverage(workItem.vmFormat, desc.unknownStatePromotion, desc.alphaCutoffGreater, desc.alphaCutoffLessEqual, vmCoverage);
 
                                             if (IsUnknown(state))
                                                 break;
                                         }
-                                        const ommOpacityState state = GetStateFromCoverage(desc.format, desc.unknownStatePromotion, desc.alphaCutoffGreater, desc.alphaCutoffLessEqual, vmCoverage);
+                                        const ommOpacityState state = GetStateFromCoverage(workItem.vmFormat, desc.unknownStatePromotion, desc.alphaCutoffGreater, desc.alphaCutoffLessEqual, vmCoverage);
                                         workItem.vmStates.SetState(uTriIt, state);
                                     }
                                     else if (options.enableAABBTesting)
@@ -935,7 +935,7 @@ namespace Cpu
 
                                         OMM_ASSERT(vmCoverage.numAboveAlpha != 0 || vmCoverage.numBelowAlpha != 0);
 
-                                        const ommOpacityState state = GetStateFromCoverage(desc.format, desc.unknownStatePromotion, desc.alphaCutoffGreater, desc.alphaCutoffLessEqual, vmCoverage);
+                                        const ommOpacityState state = GetStateFromCoverage(workItem.vmFormat, desc.unknownStatePromotion, desc.alphaCutoffGreater, desc.alphaCutoffLessEqual, vmCoverage);
                                         workItem.vmStates.SetState(uTriIt, state);
                                     }
                                     else
@@ -960,7 +960,7 @@ namespace Cpu
 
                                         OMM_ASSERT(vmCoverage.numBelowAlpha != 0 || vmCoverage.numAboveAlpha != 0);
 
-                                        const ommOpacityState state = GetStateFromCoverage(desc.format, desc.unknownStatePromotion, desc.alphaCutoffGreater, desc.alphaCutoffLessEqual, vmCoverage);
+                                        const ommOpacityState state = GetStateFromCoverage(workItem.vmFormat, desc.unknownStatePromotion, desc.alphaCutoffGreater, desc.alphaCutoffLessEqual, vmCoverage);
 
                                         workItem.vmStates.SetState(uTriIt, state);
                                     }
@@ -1013,11 +1013,11 @@ namespace Cpu
                                         RasterizeConservativeSerial(subTri, rasterSize, kernel, &params);
                                         OMM_ASSERT(vmCoverage.numAboveAlpha != 0 || vmCoverage.numBelowAlpha != 0);
 
-                                        const ommOpacityState state = GetStateFromCoverage(desc.format, desc.unknownStatePromotion, desc.alphaCutoffGreater, desc.alphaCutoffLessEqual, vmCoverage);
+                                        const ommOpacityState state = GetStateFromCoverage(workItem.vmFormat, desc.unknownStatePromotion, desc.alphaCutoffGreater, desc.alphaCutoffLessEqual, vmCoverage);
                                         if (IsUnknown(state))
                                             break;
                                     }
-                                    const ommOpacityState state = GetStateFromCoverage(desc.format, desc.unknownStatePromotion, desc.alphaCutoffGreater, desc.alphaCutoffLessEqual, vmCoverage);
+                                    const ommOpacityState state = GetStateFromCoverage(workItem.vmFormat, desc.unknownStatePromotion, desc.alphaCutoffGreater, desc.alphaCutoffLessEqual, vmCoverage);
                                     workItem.vmStates.SetState(uTriIt, state);
                                 }
                             }
@@ -1760,15 +1760,18 @@ namespace Cpu
             BakeResultImpl& res)
         {
             {
-                const uint32_t ommBitCount = omm::bird::GetBitCount(desc.format);
-
+                static_assert(ommFormat_MAX_NUM == 3);
                 uint32_t ommDescArrayCount = 0;
                 size_t ommArrayDataSize = 0;
-                for (uint32_t i = 0; i < kMaxNumSubdivLevels; ++i) {
-                    const uint32_t ommCount = ommArrayHistogram.GetOmmCount(desc.format, i);
-                    ommDescArrayCount += ommCount;
-                    const size_t numOmmForSubDivLvl = (size_t)omm::bird::GetNumMicroTriangles(i) * ommBitCount;
-                    ommArrayDataSize += size_t(ommCount) * std::max<size_t>(numOmmForSubDivLvl >> 3ull, 1ull);
+                for (ommFormat format : {ommFormat_OC1_2_State, ommFormat_OC1_4_State})
+                {
+                    const uint32_t ommStateBitCount = omm::bird::GetBitCount(format);
+                    for (uint32_t lvlIt = 0; lvlIt < kMaxNumSubdivLevels; ++lvlIt) {
+                        const uint32_t ommCount = ommArrayHistogram.GetOmmCount(format, lvlIt);
+                        ommDescArrayCount += ommCount;
+                        const size_t numOmmForSubDivLvl = (size_t)omm::bird::GetNumMicroTriangles(lvlIt) * ommStateBitCount;
+                        ommArrayDataSize += size_t(ommCount) * std::max<size_t>(numOmmForSubDivLvl >> 3ull, 1ull);
+                    }
                 }
 
                 if (ommArrayDataSize > std::numeric_limits<uint32_t>::max()) // Array data > 4GB? ouch
@@ -1816,7 +1819,7 @@ namespace Cpu
                             }
 
                             // Offsets must be at least 1B aligned.
-                            ommArrayDataOffset += std::max((numMicroTriangles * ommBitCount) >> 3u, 1u);
+                            ommArrayDataOffset += std::max((numMicroTriangles * (omm::bird::GetBitCount(vm.vmFormat))) >> 3u, 1u);
                         }
                     }
                 }
