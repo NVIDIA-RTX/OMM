@@ -22,7 +22,7 @@ OMM_CONSTANTS_START(GlobalConstants)							\
 	OMM_CONSTANT(uint, DoSetup)									\
 	OMM_CONSTANT(uint, SamplerIndex)							\
 	OMM_CONSTANT(uint, BakeResultBufferSize)					\
-	OMM_CONSTANT(uint, Pad0)									\
+	OMM_CONSTANT(uint, InputIndexStride)						\
 																\
 	OMM_CONSTANT(float2, ViewportSize)							\
 	OMM_CONSTANT(float2, InvViewportSize)						\
@@ -39,7 +39,7 @@ OMM_CONSTANTS_START(GlobalConstants)							\
 	OMM_CONSTANT(uint, TexCoordFormat)							\
 	OMM_CONSTANT(uint, TexCoordOffset)							\
 	OMM_CONSTANT(uint, TexCoordStride)							\
-	OMM_CONSTANT(uint, Pad2)									\
+	OMM_CONSTANT(uint, InputIndexFormat)						\
 																\
 	OMM_CONSTANT(float, AlphaCutoff)							\
 	OMM_CONSTANT(uint, AlphaCutoffLessEqual)					\

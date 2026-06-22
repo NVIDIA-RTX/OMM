@@ -724,7 +724,12 @@ ommResult PipelineImpl::InitGlobalConstants(const ommGpuDispatchConfigDesc& conf
 
     cbuffer = {0, };
     cbuffer.IndexCount                                 = config.indexCount;
-    cbuffer.IndexOffset                                = config.indexOffset;
+    if (config.indexFormat == ommIndexFormat_UINT_8)
+        cbuffer.IndexOffset                            = config.indexOffset;
+    else if (config.indexFormat == ommIndexFormat_UINT_16)
+        cbuffer.IndexOffset                            = 2 * config.indexOffset;
+    else
+        cbuffer.IndexOffset                            = 4 * config.indexOffset;
     cbuffer.PrimitiveCount                             = primitiveCount;
     cbuffer.MaxBatchCount                              = info.MaxBatchCount;
     cbuffer.MaxOutOmmArraySize                         = preBuildInfo.outOmmArraySizeInBytes;
@@ -748,6 +753,15 @@ ommResult PipelineImpl::InitGlobalConstants(const ommGpuDispatchConfigDesc& conf
     cbuffer.TexCoordFormat                             = (uint32_t)config.texCoordFormat;
     cbuffer.TexCoordOffset                             = config.texCoordOffsetInBytes;
     cbuffer.TexCoordStride                             = config.texCoordStrideInBytes == 0 ? GetTexCoordFormatSize(config.texCoordFormat) : config.texCoordStrideInBytes;
+    cbuffer.InputIndexFormat                           = (uint32_t)config.indexFormat;
+    if (config.indexStrideInBytes != 0)
+        cbuffer.InputIndexStride                       = config.indexStrideInBytes;
+    else if (config.indexFormat == ommIndexFormat_UINT_8)
+        cbuffer.InputIndexStride                       = 1;
+    else if (config.indexFormat == ommIndexFormat_UINT_16)
+        cbuffer.InputIndexStride                       = 2;
+    else
+        cbuffer.InputIndexStride                       = 4;
     cbuffer.AlphaCutoff                                = config.alphaCutoff;
     cbuffer.AlphaCutoffGreater                         = (uint32_t)config.alphaCutoffGreater;
     cbuffer.AlphaCutoffLessEqual                       = (uint32_t)config.alphaCutoffLessEqual;
