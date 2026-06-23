@@ -14,7 +14,6 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #include "omm_platform.hlsli"
 #include "omm.hlsli"
 #include "omm_global_cb.hlsli"
-#include "omm_global_samplers.hlsli"
 
 /// Unrolled version of murmur hash that takes N integers as input (up to 8)
 uint murmur_32_scramble(uint k)
@@ -115,12 +114,31 @@ float2 UnpackFP16Pair(uint packed)
     return f16tof32(data);
 }
 
-TexCoords FetchTexCoords(Buffer<uint> indexBuffer, ByteAddressBuffer texCoordBuffer, uint primitiveIndex)
+uint FetchInputIndex(ByteAddressBuffer indexBuffer, uint index)
+{
+	const OmmIndexFormat indexFormat = (OmmIndexFormat)g_GlobalConstants.InputIndexFormat;
+	const uint indexOffsetInBytes = g_GlobalConstants.IndexOffset + index * g_GlobalConstants.InputIndexStride;
+
+	if (indexFormat == OmmIndexFormat::UINT_8)
+	{
+		const uint raw = indexBuffer.Load(indexOffsetInBytes & ~3u);
+		return (raw >> ((indexOffsetInBytes & 3u) << 3u)) & 0xFFu;
+	}
+	else if (indexFormat == OmmIndexFormat::UINT_16)
+	{
+		const uint raw = indexBuffer.Load(indexOffsetInBytes & ~3u);
+		return (raw >> ((indexOffsetInBytes & 2u) << 3u)) & 0xFFFFu;
+	}
+
+	return indexBuffer.Load(indexOffsetInBytes);
+}
+
+TexCoords FetchTexCoords(ByteAddressBuffer indexBuffer, ByteAddressBuffer texCoordBuffer, uint primitiveIndex)
 {
 	uint3 indices;
-	indices.x		= indexBuffer[g_GlobalConstants.IndexOffset + primitiveIndex * 3 + 0];
-	indices.y		= indexBuffer[g_GlobalConstants.IndexOffset + primitiveIndex * 3 + 1];
-	indices.z		= indexBuffer[g_GlobalConstants.IndexOffset + primitiveIndex * 3 + 2];
+	indices.x		= FetchInputIndex(indexBuffer, primitiveIndex * 3 + 0);
+	indices.y		= FetchInputIndex(indexBuffer, primitiveIndex * 3 + 1);
+	indices.z		= FetchInputIndex(indexBuffer, primitiveIndex * 3 + 2);
 
 	float2 vertexUVs[3];
 	

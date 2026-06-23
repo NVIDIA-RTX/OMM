@@ -17,6 +17,12 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #define IMMINTRIN_ENABLED (0)
 #endif
 
+#if IMMINTRIN_ENABLED && defined(__BMI2__)
+#define OMM_BMI2_ENABLED (1)
+#else
+#define OMM_BMI2_ENABLED (0)
+#endif
+
 #include "math.h"
 #include <stdint.h>
 
@@ -115,7 +121,7 @@ namespace omm
 
     inline uint32_t bit_interleave(uint32_t x, uint32_t y)
     {
-#if IMMINTRIN_ENABLED
+#if OMM_BMI2_ENABLED
         // Significantly faster than _morton_bit_interleave_sw
         return _pdep_u32(x, 0x55555555) | _pdep_u32(y, 0xaaaaaaaa);
 #else

@@ -12,7 +12,6 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #include "omm_platform.hlsli"
 #include "omm.hlsli"
 #include "omm_global_cb.hlsli"
-#include "omm_global_samplers.hlsli"
 #include "omm_index_write.cs.resources.hlsli"
 
 OMM_DECLARE_LOCAL_CONSTANT_BUFFER
