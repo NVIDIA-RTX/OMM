@@ -1043,6 +1043,10 @@ namespace Cpu
             for (uint32_t i = 0; i < vmWorkItems.size(); ++i)
             {
                 const OmmWorkItem& workItem = vmWorkItems[i];
+
+                if (workItem.HasSpecialIndex())
+                    continue;
+                
                 uint64_t digest = CalcDigest(workItem);
                 auto it = digestToWorkItemIndex.find(digest);
                 if (it == digestToWorkItemIndex.end())
