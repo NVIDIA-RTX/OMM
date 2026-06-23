@@ -37,6 +37,7 @@ namespace {
 		TextureAsUNORM8			= 1 << 3,
 		AlphaCutoff				= 1 << 4,
 		Serialize				= 1 << 5,
+		DisableDuplicateDetection = 1 << 6,
 	};
 
 	struct Options
@@ -95,6 +96,7 @@ namespace {
 		bool TextureAsUNORM8() const { return (GetParam() & TestSuiteConfig::TextureAsUNORM8) == TestSuiteConfig::TextureAsUNORM8; }
 		bool EnableAlphaCutoff() const { return (GetParam() & TestSuiteConfig::AlphaCutoff) == TestSuiteConfig::AlphaCutoff; }
 		bool TestSerialization() const { return (GetParam() & TestSuiteConfig::Serialize) == TestSuiteConfig::Serialize; }
+		bool DisableDuplicateDetection() const { return (GetParam() & TestSuiteConfig::DisableDuplicateDetection) == TestSuiteConfig::DisableDuplicateDetection; }
 		
 		omm::Cpu::Texture CreateTexture(const omm::Cpu::TextureDesc& desc) {
 			omm::Cpu::Texture tex = 0;
@@ -205,6 +207,8 @@ namespace {
 				desc.bakeFlags = (omm::Cpu::BakeFlags)((uint32_t)desc.bakeFlags | (uint32_t)omm::Cpu::BakeFlags::Force32BitIndices);
 			if (!opt.enableSpecialIndices)
 				desc.bakeFlags = (omm::Cpu::BakeFlags)((uint32_t)desc.bakeFlags | (uint32_t)omm::Cpu::BakeFlags::DisableSpecialIndices);
+			if (DisableDuplicateDetection())
+				desc.bakeFlags = (omm::Cpu::BakeFlags)((uint32_t)desc.bakeFlags | (uint32_t)omm::Cpu::BakeFlags::DisableDuplicateDetection);
 
 			desc.dynamicSubdivisionScale = opt.dynamicSubdivisionScale;
 
@@ -1095,14 +1099,29 @@ namespace {
 		uint32_t subdivisionLevel = 4;
 		uint32_t numMicroTris = omm::bird::GetNumMicroTriangles(subdivisionLevel);
 
-		omm::Debug::Stats stats = GetOmmBakeStatsFP32(0.5f, subdivisionLevel, { 1024, 1024 }, &StandardCircle, { .mergeSimilar = true });
+		// DisableDuplicateDetection and mergeSimilar is an invalid combo = > INVALID_ARGUMENT
+		omm::Result bakeResult = DisableDuplicateDetection() ? omm::Result::INVALID_ARGUMENT : omm::Result::SUCCESS;
 
-		ExpectEqual(stats, {
-			.totalOpaque = 200,
-			.totalTransparent = 216,
-			.totalUnknownTransparent = 42,
-			.totalUnknownOpaque = 54,
-			});
+		omm::Debug::Stats stats = GetOmmBakeStatsFP32(0.5f, subdivisionLevel, { 1024, 1024 }, &StandardCircle, { .mergeSimilar = true, .bakeResult = bakeResult });
+
+		if (bakeResult == omm::Result::INVALID_ARGUMENT)
+		{
+			ExpectEqual(stats, {
+				.totalOpaque = 0,
+				.totalTransparent = 0,
+				.totalUnknownTransparent = 0,
+				.totalUnknownOpaque = 0,
+				});
+		}
+		else
+		{
+			ExpectEqual(stats, {
+				.totalOpaque = 200,
+				.totalTransparent = 216,
+				.totalUnknownTransparent = 42,
+				.totalUnknownOpaque = 54,
+				});
+		}
 	}
 
 	TEST_P(OMMBakeTestCPU, CircleOC2) {
@@ -1642,11 +1661,23 @@ namespace {
 			return glm::smoothstep(0.0f, gridThickness, d);
 			}, { .format = omm::Format::OC1_4_State });
 
-		ExpectEqual(stats, {
-			.totalOpaque = 6933,
-			.totalUnknownTransparent = 1935,
-			.totalUnknownOpaque = 7516,
+		if (DisableDuplicateDetection())
+		{
+			// Duplicate detection will merge UT and UO i to UO, so w/o duplicate detection we naturally have the a larger number of transparent states
+			ExpectEqual(stats, {
+				.totalOpaque = 6933,
+				.totalUnknownTransparent = 1778,
+				.totalUnknownOpaque = 7673,
 			});
+		}
+		else
+		{
+			ExpectEqual(stats, {
+				.totalOpaque = 6933,
+				.totalUnknownTransparent = 1935,
+				.totalUnknownOpaque = 7516,
+				});
+		}
 	}
 
 	TEST_P(OMMBakeTestCPU, HexagonsReuseLvl3) {
@@ -1688,12 +1719,25 @@ namespace {
 			return glm::smoothstep(0.0f, gridThickness, d);
 			}, { .format = omm::Format::OC1_4_State });
 
-		ExpectEqual(stats, {
-			.totalOpaque = 40134,
-			.totalTransparent = 250,
-			.totalUnknownTransparent = 11939,
-			.totalUnknownOpaque = 13213,
-			});
+		if (DisableDuplicateDetection())
+		{
+			// Duplicate detection will merge UT and UO i to UO, so w/o duplicate detection we naturally have the a larger number of transparent states
+			ExpectEqual(stats, {
+				.totalOpaque = 40134,
+				.totalTransparent = 250,
+				.totalUnknownTransparent = 11932,
+				.totalUnknownOpaque = 13220,
+				});
+		}
+		else
+		{
+			ExpectEqual(stats, {
+				.totalOpaque = 40134,
+				.totalTransparent = 250,
+				.totalUnknownTransparent = 11939,
+				.totalUnknownOpaque = 13213,
+				});
+		}
 	}
 
 	TEST_P(OMMBakeTestCPU, HexagonsReuseLvl4) {
@@ -1735,12 +1779,25 @@ namespace {
 			return glm::smoothstep(0.0f, gridThickness, d);
 			}, { .format = omm::Format::OC1_4_State });
 
-		ExpectEqual(stats, {
-			.totalOpaque = 187129,
-			.totalTransparent = 17979,
-			.totalUnknownTransparent = 30309,
-			.totalUnknownOpaque = 26727,
-			});
+		if (DisableDuplicateDetection())
+		{
+			// Duplicate detection will merge UT and UO i to UO, so w/o duplicate detection we naturally have the a larger number of transparent states
+			ExpectEqual(stats, {
+				.totalOpaque = 187129,
+				.totalTransparent = 17979,
+				.totalUnknownTransparent = 30319,
+				.totalUnknownOpaque = 26717,
+				});
+		}
+		else
+		{
+			ExpectEqual(stats, {
+				.totalOpaque = 187129,
+				.totalTransparent = 17979,
+				.totalUnknownTransparent = 30309,
+				.totalUnknownOpaque = 26727,
+				});
+		}
 	}
 
 	TEST_P(OMMBakeTestCPU, HexagonsReuseLvl5) {
@@ -1815,6 +1872,9 @@ namespace {
 			}
 		}
 
+		// DisableDuplicateDetection and mergeSimilar is an invalid combo = > INVALID_ARGUMENT
+		omm::Result bakeResult = DisableDuplicateDetection() ? omm::Result::INVALID_ARGUMENT : omm::Result::SUCCESS;
+
 		omm::Debug::Stats stats = GetOmmBakeStatsFP32(0.5f, subdivisionLevel, { 1024, 1024 }, (uint32_t)indices.size(), indices.data(), omm::TexCoordFormat::UV32_FLOAT, (float*)texCoords.data(), [](int i, int j, int w, int h, int mip)->float {
 
 			const float scale = 30.f;
@@ -1827,15 +1887,27 @@ namespace {
 			float d = std::abs(glm::max(pos.x * 1.5f + pos.y, pos.y * 2.0f) - 1.0f);
 
 			return glm::smoothstep(0.0f, gridThickness, d);
-			}, { .format = omm::Format::OC1_4_State, .mergeSimilar = true });
+			}, { .format = omm::Format::OC1_4_State, .mergeSimilar = true, .bakeResult = bakeResult });
 
-		ExpectEqual(stats, {
-			.totalOpaque = 170724,
-			.totalTransparent = 11380,
-			.totalUnknownTransparent = 37864,
-			.totalUnknownOpaque = 39104,
-			.totalFullyTransparent = 12,
-			});
+		if (bakeResult == omm::Result::INVALID_ARGUMENT)
+		{
+			ExpectEqual(stats, {
+				.totalOpaque = 0,
+				.totalTransparent = 0,
+				.totalUnknownTransparent = 0,
+				.totalUnknownOpaque = 0,
+				.totalFullyTransparent = 0,
+				});
+		}
+		else
+		{
+			ExpectEqual(stats, {
+				.totalOpaque = 172854,
+				.totalTransparent = 11500,
+				.totalUnknownTransparent = 38296,
+				.totalUnknownOpaque = 39494
+				});
+		}
 	}
 
 	TEST_P(OMMBakeTestCPU, Leaflet_Alpha_0_2) {
@@ -2766,6 +2838,9 @@ namespace {
 			str += "AlphaCutoff_";
 		if ((info.param & TestSuiteConfig::Serialize) == TestSuiteConfig::Serialize)
 			str += "Serialize_";
+		if ((info.param & TestSuiteConfig::DisableDuplicateDetection) == TestSuiteConfig::DisableDuplicateDetection)
+			str += "DisableDuplicateDetection_";
+		
 		if (str.length() > 0)
 			str.pop_back();
 		return str;
@@ -2778,6 +2853,7 @@ namespace {
 		 , TestSuiteConfig::TextureAsUNORM8
 		 , TestSuiteConfig::AlphaCutoff
 		 , TestSuiteConfig::Serialize
+		 , TestSuiteConfig::DisableDuplicateDetection
 		
 	), CustomParamName);
 
