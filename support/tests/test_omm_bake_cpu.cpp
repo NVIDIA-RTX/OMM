@@ -61,6 +61,8 @@ namespace {
 		omm::SpecialIndex unresolvedTriState = omm::SpecialIndex::FullyUnknownOpaque;
 		float dynamicSubdivisionScale = 0.f;
 		omm::Format* formats = nullptr;
+		bool internalThreads = true;
+		omm::TextureFilterMode filter = omm::TextureFilterMode::Linear;
 	};
 
 	static float StandardCircle(int i, int j, int w, int h, int mip)
@@ -187,7 +189,7 @@ namespace {
 			desc.formats = opt.formats;
 			desc.alphaMode = omm::AlphaMode::Test;
 			desc.runtimeSamplerDesc.addressingMode = opt.addressingMode;
-			desc.runtimeSamplerDesc.filter = omm::TextureFilterMode::Linear;
+			desc.runtimeSamplerDesc.filter = opt.filter;
 			desc.indexFormat = omm::IndexFormat::UINT_32;
 			desc.indexBuffer = triangleIndices;
 			desc.texCoords = texCoords;
@@ -198,7 +200,7 @@ namespace {
 			desc.alphaCutoffLessEqual = opt.alphaCutoffLE;
 			desc.alphaCutoffGreater = opt.alphaCutoffGT;
 			desc.unknownStatePromotion = opt.unknownStatePromotion;
-			desc.bakeFlags = (omm::Cpu::BakeFlags)((uint32_t)omm::Cpu::BakeFlags::EnableInternalThreads);
+			desc.bakeFlags = opt.internalThreads ? omm::Cpu::BakeFlags::EnableInternalThreads : omm::Cpu::BakeFlags::None;
 			desc.maxWorkloadSize = opt.maxWorkloadSize;
 			desc.unresolvedTriState = opt.unresolvedTriState;
 			if (opt.mergeSimilar)
@@ -2564,6 +2566,33 @@ namespace {
 			.totalUnknownTransparent = 70,
 			.totalUnknownOpaque = 58,
 			});
+	}
+
+	TEST_P(OMMBakeTestCPU, FineSchedulingMatchesSerial) {
+		uint32_t triangleIndices[] = { 0, 1, 2, 3, 4, 5, 6, 6, 6 };
+		float texCoords[] = {
+			0.f, 0.f, 1.f, 0.f, 0.f, 1.f,
+			0.2f, 0.f, 0.2f, 1.f, 0.2f, 0.5f,
+			0.9f, 0.5f,
+		};
+		vmtest::TextureFP32 texture(64, 64, 1, EnableZOrder(), EnableAlphaCutoff() ? 0.5f : -1.f, &StandardCircle);
+		const omm::Cpu::Texture tex = CreateTexture(texture.GetDesc());
+
+		for (auto filter : { omm::TextureFilterMode::Linear, omm::TextureFilterMode::Nearest }) {
+			SCOPED_TRACE(static_cast<int>(filter));
+			Options opt;
+			opt.enableSpecialIndices = false;
+			opt.forceSerializedOutput = true;
+			opt.filter = filter;
+			// Nearest filtering uses triangle rasterization, which requires nondegenerate triangles.
+			const uint32_t indexCount = filter == omm::TextureFilterMode::Linear ? 9 : 3;
+			opt.internalThreads = false;
+			const auto serial = Bake(0.5f, 6, { 64, 64 }, indexCount, triangleIndices, omm::TexCoordFormat::UV32_FLOAT, texCoords, tex, opt);
+			opt.internalThreads = true;
+			const auto threaded = Bake(0.5f, 6, { 64, 64 }, indexCount, triangleIndices, omm::TexCoordFormat::UV32_FLOAT, texCoords, tex, opt);
+			ASSERT_FALSE(serial.serializedOutput.empty());
+			EXPECT_EQ(serial.serializedOutput, threaded.serializedOutput);
+		}
 	}
 
 	TEST_P(OMMBakeTestCPU, Degen_Default_lvl1) {

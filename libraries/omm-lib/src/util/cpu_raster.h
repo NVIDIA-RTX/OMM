@@ -305,8 +305,7 @@ namespace omm
 
         const float2 pixelSize(1, 1);
 
-        #pragma omp parallel for if (EnableParallel)
-        for (int y = min.y; y < max.y; ++y) {
+        const auto RasterizeRow = [&](int y) {
             bool wasInside = false;
 
             for (int x = min.x; x < max.x; ++x) {
@@ -379,6 +378,20 @@ namespace omm
                         break;
                 }
             }
+        };
+
+        // A false OpenMP "if" still enters a serialized parallel region.
+        // Keep serial microtriangle traversal entirely outside the runtime.
+        if constexpr (EnableParallel)
+        {
+            #pragma omp parallel for
+            for (int y = min.y; y < max.y; ++y)
+                RasterizeRow(y);
+        }
+        else
+        {
+            for (int y = min.y; y < max.y; ++y)
+                RasterizeRow(y);
         }
     }
 

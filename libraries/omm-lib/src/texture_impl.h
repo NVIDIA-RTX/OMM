@@ -40,12 +40,17 @@ namespace omm
         ommResult Create(const ommCpuTextureDesc& desc);
 
         template<ommCpuTextureFormat eFormat, TilingMode eTilingMode>
-        float Load(const int2& texCoord, int32_t mip) const;
+        OMM_FORCE_INLINE float Load(const int2& texCoord, int32_t mip) const;
+
+        // Addressed diagonal coordinates define the four samples, including wrap/mirror seams.
+        // The result is ordered 00, 01, 11, 10 to match the classification kernels.
+        template<ommCpuTextureFormat eFormat, TilingMode eTilingMode, bool bBorder = false>
+        OMM_FORCE_INLINE float4 Gather(const int2& coord00, const int2& coord11, int32_t mip, float borderAlpha = 0.f) const;
 
         float Load(const int2& texCoord, int32_t mip) const;
 
         template<ommCpuTextureFormat eFormat, TilingMode eTilingMode, ommTextureAddressMode eMode, bool bTexIsPow2>
-        float Bilinear(const float2& p, int32_t mip) const;
+        OMM_FORCE_INLINE float Bilinear(const float2& p, int32_t mip, float borderAlpha = 0.f) const;
 
         float Bilinear(ommTextureAddressMode mode, const float2& p, int32_t mip) const;
 
@@ -71,8 +76,8 @@ namespace omm
             return m_mips[mip].sizef;
         }
 
-        bool SizeIsPow2() const {
-            return m_mips[0].sizeIsPow2;
+        bool SizeIsPow2(int32_t mip = 0) const {
+            return m_mips[mip].sizeIsPow2;
         }
 
         const float2& GetRcpSize(int32_t mip) const {
@@ -135,9 +140,14 @@ namespace omm
         ommResult Validate(const ommCpuTextureDesc& desc) const;
         void Deallocate();
         template<TilingMode eTilingMode>
-        static uint32_t From2Dto1D(const int2& idx, const int2& size) {
-            OMM_ASSERT(false && "Not implemented");
-            return 0;
+        static OMM_FORCE_INLINE uint32_t From2Dto1D(const int2& idx, const int2& size) {
+            if constexpr (eTilingMode == TilingMode::Linear)
+                return idx.x + idx.y * uint32_t(size.x);
+            else
+            {
+                static_assert(eTilingMode == TilingMode::MortonZ);
+                return xy_to_morton(idx.x, idx.y);
+            }
         }
         template<TilingMode eTilingMode>
         static uint2 From1Dto2D(const uint32_t idx, const int2& size) {
@@ -176,7 +186,7 @@ namespace omm
     };
 
     template<ommCpuTextureFormat eFormat, TilingMode eTilingMode>
-    float TextureImpl::Load(const int2& texCoord, int32_t mip) const
+    OMM_FORCE_INLINE float TextureImpl::Load(const int2& texCoord, int32_t mip) const
     {
         OMM_ASSERT(eTilingMode == m_tilingMode);
         OMM_ASSERT(eFormat == m_textureFormat);
@@ -202,28 +212,79 @@ namespace omm
     }
 
 
+    template<ommCpuTextureFormat eFormat, TilingMode eTilingMode, bool bBorder>
+    OMM_FORCE_INLINE float4 TextureImpl::Gather(const int2& coord00, const int2& coord11, int32_t mip, float borderAlpha) const
+    {
+        OMM_ASSERT(eTilingMode == m_tilingMode);
+        OMM_ASSERT(eFormat == m_textureFormat);
+
+        if constexpr (bBorder)
+        {
+            const bool borderX0 = coord00.x == kTexCoordBorder;
+            const bool borderY0 = coord00.y == kTexCoordBorder;
+            const bool borderX1 = coord11.x == kTexCoordBorder;
+            const bool borderY1 = coord11.y == kTexCoordBorder;
+            if (borderX0 || borderY0 || borderX1 || borderY1)
+            {
+                return float4(
+                    borderX0 || borderY0 ? borderAlpha : Load<eFormat, eTilingMode>(coord00, mip),
+                    borderX0 || borderY1 ? borderAlpha : Load<eFormat, eTilingMode>(int2(coord00.x, coord11.y), mip),
+                    borderX1 || borderY1 ? borderAlpha : Load<eFormat, eTilingMode>(coord11, mip),
+                    borderX1 || borderY0 ? borderAlpha : Load<eFormat, eTilingMode>(int2(coord11.x, coord00.y), mip));
+            }
+        }
+
+        OMM_ASSERT(InTexture(coord00, mip));
+        OMM_ASSERT(InTexture(coord11, mip));
+        const auto& mipInfo = m_mips[mip];
+        uint32_t x0, x1, y0, y1;
+        if constexpr (eTilingMode == TilingMode::Linear)
+        {
+            x0 = uint32_t(coord00.x);
+            x1 = uint32_t(coord11.x);
+            y0 = uint32_t(coord00.y) * uint32_t(mipInfo.size.x);
+            y1 = uint32_t(coord11.y) * uint32_t(mipInfo.size.x);
+        }
+        else
+        {
+            static_assert(eTilingMode == TilingMode::MortonZ);
+            // Spread each distinct coordinate once instead of interleaving four pairs.
+            x0 = xy_to_morton(coord00.x, 0);
+            x1 = xy_to_morton(coord11.x, 0);
+            y0 = xy_to_morton(0, coord00.y);
+            y1 = xy_to_morton(0, coord11.y);
+        }
+        const uint8_t* data = m_data + mipInfo.dataOffset;
+        const auto Read = [&](uint32_t index) {
+            OMM_ASSERT(index < mipInfo.numElements);
+            if constexpr (eFormat == ommCpuTextureFormat_FP32)
+                return reinterpret_cast<const float*>(data)[index];
+            else
+            {
+                static_assert(eFormat == ommCpuTextureFormat_UNORM8);
+                return float(data[index]) * (1.f / 255.f);
+            }
+        };
+        // Morton coordinate bitfields are disjoint, so addition also combines them.
+        return float4(Read(x0 + y0), Read(x0 + y1), Read(x1 + y1), Read(x1 + y0));
+    }
+
     template<ommCpuTextureFormat eFormat, TilingMode eTilingMode, ommTextureAddressMode eMode, bool bTexIsPow2>
-    float TextureImpl::Bilinear(const float2& p, int32_t mip) const
+    OMM_FORCE_INLINE float TextureImpl::Bilinear(const float2& p, int32_t mip, float borderAlpha) const
     {
         float2 pixel = p * (float2)(m_mips[mip].size) - 0.5f;
         float2 pixelFloor = glm::floor(pixel);
-        int2 coords[omm::TexelOffset::MAX_NUM];
-        omm::GatherTexCoord4<eMode, bTexIsPow2>(int2(pixelFloor), m_mips[mip].size, coords);
-
-        float a = Load<eFormat, eTilingMode>(coords[omm::TexelOffset::I0x0], mip);
-        float b = Load<eFormat, eTilingMode>(coords[omm::TexelOffset::I0x1], mip);
-        float c = Load<eFormat, eTilingMode>(coords[omm::TexelOffset::I1x0], mip);
-        float d = Load<eFormat, eTilingMode>(coords[omm::TexelOffset::I1x1], mip);
+        const auto& mipInfo = m_mips[mip];
+        const int2 coord00 = GetTexCoord<eMode, bTexIsPow2>(int2(pixelFloor), mipInfo.size, mipInfo.sizeLog2);
+        const int2 coord11 = GetTexCoord<eMode, bTexIsPow2>(int2(pixelFloor) + int2(1), mipInfo.size, mipInfo.sizeLog2);
+        const float4 samples = Gather<eFormat, eTilingMode, eMode == ommTextureAddressMode_Border>(coord00, coord11, mip, borderAlpha);
 
         const float2 weight = glm::fract(pixel);
-        float ac = glm::lerp<float>(a, c, weight.x);
-        float bd = glm::lerp<float>(b, d, weight.x);
+        float ac = glm::lerp<float>(samples.x, samples.w, weight.x);
+        float bd = glm::lerp<float>(samples.y, samples.z, weight.x);
         float bilinearValue = glm::lerp(ac, bd, weight.y);
         return bilinearValue;
     }
-
-   	template<> uint32_t TextureImpl::From2Dto1D<TilingMode::Linear>(const int2& idx, const int2& size);
-   	template<> uint32_t TextureImpl::From2Dto1D<TilingMode::MortonZ>(const int2& idx, const int2& size);
 
     template<> uint2 TextureImpl::From1Dto2D<TilingMode::Linear>(const uint32_t idx, const int2& size);
     template<> uint2 TextureImpl::From1Dto2D<TilingMode::MortonZ>(const uint32_t idx, const int2& size);

@@ -15,8 +15,79 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #include <omp.h>
 #include <algorithm>
 #include <filesystem>
+#include <iterator>
+#include <vector>
 
 namespace {
+
+template <omm::RasterMode Mode, bool EnableBarycentrics>
+void CompareSerialAndParallel(const omm::Triangle& triangle, int2 resolution, float2 offset)
+{
+	SCOPED_TRACE(::testing::Message() << "mode " << Mode << ", barycentrics " << EnableBarycentrics);
+	const int2 min = int2(glm::floor(triangle.aabb_s * float2(resolution) + offset));
+	const int2 max = int2(glm::ceil(triangle.aabb_e * float2(resolution) + offset));
+	const int width = max.x - min.x;
+	struct Sample {
+		unsigned visits = 0;
+		float3 barycentrics = float3(0.f);
+	};
+	std::vector<Sample> serial(width * (max.y - min.y)), parallel(serial.size());
+	auto collect = [min, width](int2 index, const float3* barycentrics, void* context) {
+		auto& samples = *static_cast<std::vector<Sample>*>(context);
+		// Each scanline owns distinct slots, including cells outside the texture.
+		auto& sample = samples.at((index.y - min.y) * width + index.x - min.x);
+		++sample.visits;
+		if (barycentrics)
+			sample.barycentrics = *barycentrics;
+	};
+	if constexpr (EnableBarycentrics)
+	{
+		omm::RasterizeTriImpl<Mode, false, true>(triangle, resolution, offset, collect, &serial);
+		omm::RasterizeTriImpl<Mode, true, true>(triangle, resolution, offset, collect, &parallel);
+	}
+	else
+	{
+		auto withoutBarycentrics = [&collect](int2 index, void* context) { collect(index, nullptr, context); };
+		omm::RasterizeTriImpl<Mode, false, false>(triangle, resolution, offset, withoutBarycentrics, &serial);
+		omm::RasterizeTriImpl<Mode, true, false>(triangle, resolution, offset, withoutBarycentrics, &parallel);
+	}
+	for (size_t i = 0; i < serial.size(); ++i)
+	{
+		ASSERT_EQ(serial[i].visits, parallel[i].visits) << "cell " << i;
+		EXPECT_LE(serial[i].visits, 1u);
+		if constexpr (EnableBarycentrics)
+		{
+			for (int component = 0; component < 3; ++component)
+				EXPECT_FLOAT_EQ(serial[i].barycentrics[component], parallel[i].barycentrics[component]) << "cell " << i;
+		}
+	}
+}
+
+TEST(RasterTraversal, SerialMatchesParallel)
+{
+	const omm::Triangle triangles[] = {
+		omm::Triangle({ 0.125f, 0.125f }, { 0.875f, 0.125f }, { 0.125f, 0.875f }),
+		omm::Triangle({ -0.25f, -0.125f }, { 0.875f, 0.125f }, { -0.125f, 0.875f }),
+		omm::Triangle({ -0.1f, -0.125f }, { 0.9f, 0.875f }, { 0.85f, 0.875f }),
+		omm::Triangle({ 0.45f, 0.45f }, { 0.46f, 0.45f }, { 0.45f, 0.46f }),
+	};
+	for (size_t i = 0; i < std::size(triangles); ++i)
+		for (bool reverse : { false, true })
+			for (float shift : { 0.f, -0.5f })
+			{
+				SCOPED_TRACE(::testing::Message() << "triangle " << i << ", reverse " << reverse << ", offset " << shift);
+				const auto& t = triangles[i];
+				const omm::Triangle triangle = reverse ? omm::Triangle(t.p2, t.p1, t.p0) : t;
+				const int2 resolution(16, 12);
+				const float2 offset(shift);
+				CompareSerialAndParallel<omm::Default, false>(triangle, resolution, offset);
+				CompareSerialAndParallel<omm::Default, true>(triangle, resolution, offset);
+				CompareSerialAndParallel<omm::OverConservative, false>(triangle, resolution, offset);
+				CompareSerialAndParallel<omm::OverConservative, true>(triangle, resolution, offset);
+				CompareSerialAndParallel<omm::UnderConservative, false>(triangle, resolution, offset);
+				CompareSerialAndParallel<omm::UnderConservative, true>(triangle, resolution, offset);
+			}
+}
 
 class RasterTest : public ::testing::TestWithParam<std::tuple<omm::Triangle, int2>> {
 protected:

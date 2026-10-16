@@ -10,7 +10,10 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 #include <gtest/gtest.h>
 #include "util/texture.h"
+#include "texture_impl.h"
 #include <omm.h>
+#include <array>
+#include <vector>
 
 namespace {
 
@@ -263,5 +266,148 @@ namespace {
 		TexCoordTest(omm::TextureAddressMode::MirrorOnce, { 8, 8 },   { 8, 8 },  { 7, 7 });
 		TexCoordTest(omm::TextureAddressMode::MirrorOnce, { 16, 16 }, { 8, 8 },  { 7, 7 });
 		TexCoordTest(omm::TextureAddressMode::MirrorOnce, { 32, 32 }, { 8, 8 },  { 7, 7 });
+	}
+
+	template<ommCpuTextureFormat Format, omm::TilingMode Tiling>
+	struct TextureSamplingConfig {
+		static constexpr ommCpuTextureFormat format = Format;
+		static constexpr omm::TilingMode tiling = Tiling;
+	};
+
+	template<class Config>
+	class TextureSampling : public ::testing::Test {
+	protected:
+		void SetUp() override {
+			ommBakerCreationDesc bakerDesc = ommBakerCreationDescDefault();
+			bakerDesc.type = ommBakerType_CPU;
+			ASSERT_EQ(ommCreateBaker(&bakerDesc, &_baker), ommResult_SUCCESS);
+
+			std::array<ommCpuTextureMipDesc, 3> mips;
+			for (int mip = 0; mip < 3; ++mip) {
+				const int2 size = _sizes[mip];
+				for (int y = 0; y < size.y; ++y) {
+					for (int x = 0; x < size.x; ++x) {
+						_data8[mip].push_back(uint8_t((x * 37 + y * 83 + mip * 17) % 256));
+						_data32[mip].push_back(float((x * 17 + y * 31 + mip * 11) % 64) / 64.f);
+					}
+				}
+				mips[mip] = ommCpuTextureMipDescDefault();
+				mips[mip].width = size.x;
+				mips[mip].height = size.y;
+				if constexpr (Config::format == ommCpuTextureFormat_FP32)
+					mips[mip].textureData = _data32[mip].data();
+				else
+					mips[mip].textureData = _data8[mip].data();
+			}
+
+			ommCpuTextureDesc textureDesc = ommCpuTextureDescDefault();
+			textureDesc.format = Config::format;
+			textureDesc.flags = Config::tiling == omm::TilingMode::Linear ? ommCpuTextureFlags_DisableZOrder : ommCpuTextureFlags_None;
+			textureDesc.mips = mips.data();
+			textureDesc.mipCount = uint32_t(mips.size());
+			ASSERT_EQ(ommCpuCreateTexture(_baker, &textureDesc, &_texture), ommResult_SUCCESS);
+		}
+
+		void TearDown() override {
+			if (_texture)
+				EXPECT_EQ(ommCpuDestroyTexture(_baker, _texture), ommResult_SUCCESS);
+			if (_baker)
+				EXPECT_EQ(ommDestroyBaker(_baker), ommResult_SUCCESS);
+		}
+
+		const omm::TextureImpl& Texture() const {
+			return *omm::GetHandleImpl<omm::TextureImpl>(_texture);
+		}
+
+		float ReferenceLoad(const int2& coord, int mip, float borderAlpha) const {
+			if (coord.x == omm::kTexCoordBorder || coord.y == omm::kTexCoordBorder)
+				return borderAlpha;
+			const size_t index = size_t(coord.y) * _sizes[mip].x + coord.x;
+			if constexpr (Config::format == ommCpuTextureFormat_FP32)
+				return _data32[mip][index];
+			else
+				return float(_data8[mip][index]) * (1.f / 255.f);
+		}
+
+		template<ommTextureAddressMode Mode, bool IsPow2>
+		void CheckBilinear(int mip) const {
+			const int2 size = _sizes[mip];
+			const float uv[] = { -1.125f, -0.25f, -0.0625f, 0.f, 0.0625f, 0.25f, 0.5f, 0.875f, 0.9375f, 1.f, 1.0625f, 1.375f, 2.125f };
+			for (float v : uv) {
+				for (float u : uv) {
+					for (float borderAlpha : { 0.f, 0.375f, 1.f }) {
+						SCOPED_TRACE(::testing::Message() << "mip=" << mip << " mode=" << int(Mode) << " uv=" << u << "," << v << " border=" << borderAlpha);
+						const float2 pixel = float2(u, v) * float2(size) - 0.5f;
+						const int2 base = int2(glm::floor(pixel));
+						const float2 w = pixel - float2(base);
+						auto sample = [&](int x, int y) {
+							return ReferenceLoad(omm::GetTexCoord(Mode, IsPow2, base + int2(x, y), size, omm::ctz(size)), mip, borderAlpha);
+						};
+						const float expected = (sample(0, 0) * (1.f - w.x) + sample(1, 0) * w.x) * (1.f - w.y)
+							+ (sample(0, 1) * (1.f - w.x) + sample(1, 1) * w.x) * w.y;
+						const float actual = Texture().template Bilinear<Config::format, Config::tiling, Mode, IsPow2>(float2(u, v), mip, borderAlpha);
+						EXPECT_NEAR(actual, expected, 1e-6f);
+					}
+				}
+			}
+		}
+
+		const std::array<int2, 3> _sizes = { int2(8, 4), int2(5, 3), int2(1, 1) };
+		std::array<std::vector<uint8_t>, 3> _data8;
+		std::array<std::vector<float>, 3> _data32;
+		ommBaker _baker = nullptr;
+		ommCpuTexture _texture = nullptr;
+	};
+
+	using TextureSamplingTypes = ::testing::Types<
+		TextureSamplingConfig<ommCpuTextureFormat_FP32, omm::TilingMode::Linear>,
+		TextureSamplingConfig<ommCpuTextureFormat_FP32, omm::TilingMode::MortonZ>,
+		TextureSamplingConfig<ommCpuTextureFormat_UNORM8, omm::TilingMode::Linear>,
+		TextureSamplingConfig<ommCpuTextureFormat_UNORM8, omm::TilingMode::MortonZ>>;
+	TYPED_TEST_SUITE(TextureSampling, TextureSamplingTypes);
+
+	TYPED_TEST(TextureSampling, GatherMatchesSourceTexels) {
+		for (int mip = 0; mip < 3; ++mip) {
+			const int2 size = this->_sizes[mip];
+			const bool isPow2 = omm::isPow2(size.x) && omm::isPow2(size.y);
+			for (int mode = 0; mode < ommTextureAddressMode_MAX_NUM; ++mode) {
+				for (int y = -size.y - 2; y <= size.y + 1; ++y) {
+					for (int x = -size.x - 2; x <= size.x + 1; ++x) {
+						int2 coords[omm::TexelOffset::MAX_NUM];
+						omm::GatherTexCoord4(ommTextureAddressMode(mode), isPow2, int2(x, y), size, omm::ctz(size), coords);
+						for (float borderAlpha : { 0.f, 0.375f, 1.f }) {
+							SCOPED_TRACE(::testing::Message() << "mip=" << mip << " mode=" << mode << " cell=" << x << "," << y << " border=" << borderAlpha);
+							const float4 actual = mode == ommTextureAddressMode_Border
+								? this->Texture().template Gather<TypeParam::format, TypeParam::tiling, true>(coords[omm::I0x0], coords[omm::I1x1], mip, borderAlpha)
+								: this->Texture().template Gather<TypeParam::format, TypeParam::tiling>(coords[omm::I0x0], coords[omm::I1x1], mip, borderAlpha);
+							EXPECT_FLOAT_EQ(actual.x, this->ReferenceLoad(coords[omm::I0x0], mip, borderAlpha));
+							EXPECT_FLOAT_EQ(actual.y, this->ReferenceLoad(coords[omm::I0x1], mip, borderAlpha));
+							EXPECT_FLOAT_EQ(actual.z, this->ReferenceLoad(coords[omm::I1x1], mip, borderAlpha));
+							EXPECT_FLOAT_EQ(actual.w, this->ReferenceLoad(coords[omm::I1x0], mip, borderAlpha));
+						}
+					}
+				}
+			}
+		}
+	}
+
+	TYPED_TEST(TextureSampling, BilinearMatchesScalarInterpolation) {
+		for (int mip = 0; mip < 3; ++mip) {
+			const int2 size = this->_sizes[mip];
+			if (omm::isPow2(size.x) && omm::isPow2(size.y)) {
+				this->template CheckBilinear<ommTextureAddressMode_Wrap, true>(mip);
+				this->template CheckBilinear<ommTextureAddressMode_Mirror, true>(mip);
+				this->template CheckBilinear<ommTextureAddressMode_Clamp, true>(mip);
+				this->template CheckBilinear<ommTextureAddressMode_Border, true>(mip);
+				this->template CheckBilinear<ommTextureAddressMode_MirrorOnce, true>(mip);
+			}
+			else {
+				this->template CheckBilinear<ommTextureAddressMode_Wrap, false>(mip);
+				this->template CheckBilinear<ommTextureAddressMode_Mirror, false>(mip);
+				this->template CheckBilinear<ommTextureAddressMode_Clamp, false>(mip);
+				this->template CheckBilinear<ommTextureAddressMode_Border, false>(mip);
+				this->template CheckBilinear<ommTextureAddressMode_MirrorOnce, false>(mip);
+			}
+		}
 	}
 }

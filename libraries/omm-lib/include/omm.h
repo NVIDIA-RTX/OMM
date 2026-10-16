@@ -15,7 +15,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #include <stddef.h>
 
 #define OMM_VERSION_MAJOR 1
-#define OMM_VERSION_MINOR 10
+#define OMM_VERSION_MINOR 11
 #define OMM_VERSION_BUILD 0
 
 #define OMM_MAX_TRANSIENT_POOL_BUFFERS 8

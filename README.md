@@ -115,6 +115,26 @@ Requires CMake 4.1 or newer.
 ```
 10. If running `Tests` and CMake have been configured with `-DOMM_TEST_ENABLE_IMAGE_DUMP` a folder with image files will be located in `D:\Opacity-MicroMap-SDK\build\tests\OmmBakeOutput` and  `D:\Opacity-MicroMap-SDK\build\tests\OmmBakeOutput_GPU`
 
+## CPU bake benchmark
+
+The `omm-cpu-benchmark` command-line tool bakes the bundled
+`assets/omm_example_data/leaves.bin` using its serialized settings. It requires
+only the CPU SDK library and can be built with the viewer and tests disabled.
+
+```powershell
+cmake -S . -B build -DOMM_BUILD_BENCHMARK=ON
+cmake --build build --config Release --target omm-cpu-benchmark
+.\build\bin\Release\omm-cpu-benchmark.exe --iterations 5 --warmup 1
+```
+
+Each iteration bakes every input in the blob. The tool prints individual times
+and minimum, median, mean, and maximum bake time. File loading, deserialization,
+warmup, and result destruction are excluded from the measurements. Use
+`--threads on` or `--threads off` to override internal threading, or `--input PATH`
+to benchmark another serialized blob. Otherwise the saved bake settings are
+preserved. Run `--help` for all options. Build with `-DOMM_BUILD_BENCHMARK=OFF`
+to omit the tool.
+
 ## CMake options
 `-DOMM_STATIC_LIBRARY=ON` - Will configure the omm-sdk project as either a SHARED (OFF) or STATIC (ON) target in CMake. 
 
