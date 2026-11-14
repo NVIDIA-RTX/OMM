@@ -1069,6 +1069,20 @@ namespace {
 			});
 	}
 
+	TEST_P(OMMBakeTestCPU, WrapNonPow2NegativeUV) {
+
+		// Only the last texel column is opaque. With wrap addressing, u in [-0.25, -0.1] maps to
+		// u in [0.75, 0.9], which only covers the last column of a 3 texel wide texture.
+		uint32_t triangleIndices[3] = { 0, 1, 2 };
+		float texCoords[6] = { -0.25f, 0.1f,	-0.1f, 0.1f,	-0.25f, 0.9f };
+
+		omm::Debug::Stats stats = GetOmmBakeStatsFP32(0.5f, 0, { 3, 4 }, 3, triangleIndices, omm::TexCoordFormat::UV32_FLOAT, texCoords, [](int i, int j, int w, int h, int mip)->float {
+			return i == w - 1 ? 1.f : 0.f;
+			}, { .addressingMode = omm::TextureAddressMode::Wrap, .filter = omm::TextureFilterMode::Nearest });
+
+		ExpectEqual(stats, { .totalFullyOpaque = 1 });
+	}
+
 	TEST_P(OMMBakeTestCPU, AllOpaque1_CorruptedBlob) {
 
 		uint32_t subdivisionLevel = 1;

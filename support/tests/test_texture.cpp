@@ -59,6 +59,16 @@ namespace {
 		TexCoordTest(omm::TextureAddressMode::Wrap, { -2048, -1 },   { 512, 1024 },  { 0, 1023 });
 		TexCoordTest(omm::TextureAddressMode::Wrap, { 1024, 1024 },  { 512, 1024 },  { 0, 0 });
 		TexCoordTest(omm::TextureAddressMode::Wrap, { 2048, 1024 },  { 512, 1024 },  { 0, 0 });
+
+		// Non-power-of-two
+		TexCoordTest(omm::TextureAddressMode::Wrap, { 1, 4 },		{ 3, 5 },		{ 1, 4 });
+		TexCoordTest(omm::TextureAddressMode::Wrap, { 3, 5 },		{ 3, 5 },		{ 0, 0 });
+		TexCoordTest(omm::TextureAddressMode::Wrap, { 7, 12 },		{ 3, 5 },		{ 1, 2 });
+		TexCoordTest(omm::TextureAddressMode::Wrap, { -1, -1 },		{ 3, 5 },		{ 2, 4 });
+		TexCoordTest(omm::TextureAddressMode::Wrap, { -3, -5 },		{ 3, 5 },		{ 0, 0 });
+		TexCoordTest(omm::TextureAddressMode::Wrap, { -4, -6 },		{ 3, 5 },		{ 2, 4 });
+		TexCoordTest(omm::TextureAddressMode::Wrap, { -1, -1 },		{ 640, 480 },	{ 639, 479 });
+		TexCoordTest(omm::TextureAddressMode::Wrap, { -641, -2 },	{ 640, 480 },	{ 639, 478 });
 	}
 
 	TEST(GetTexCoord, Mirror) {
