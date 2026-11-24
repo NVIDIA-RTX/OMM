@@ -12,6 +12,21 @@
 
 function(compile_shaders)
 
+    # Apply to every shader stage and both backends. CPU fast math is configured
+    # separately by OMM_ENABLE_FAST_MATH.
+    set(SHADERMAKE_COMPILER_OPTIONS --compilerOptions=-DOMM_USE_RAW_INDEX_BUFFER=$<BOOL:${OMM_USE_RAW_INDEX_BUFFER}>)
+    if (OMM_ENABLE_PRECISE_GPU_MATH)
+        list(APPEND SHADERMAKE_COMPILER_OPTIONS --compilerOptions=-Gis)
+    endif()
+    if (OMM_DISABLE_GPU_SHADER_OPTIMIZATIONS)
+        # -Od also sets DXIL's DisableOptimizations shader flag for the driver.
+        # Optimization level zero (-O0) does not set that flag.
+        list(APPEND SHADERMAKE_COMPILER_OPTIONS --compilerOptions=-Od)
+    endif()
+    if (OMM_GPU_REFERENCE_MODE)
+        list(APPEND SHADERMAKE_COMPILER_OPTIONS --compilerOptions=-DOMM_GPU_REFERENCE_MODE=1)
+    endif()
+
     if (OMM_SHADER_DEBUG_INFO)
     set (DXC_ADDITIONAL_OPTIONS -Qembed_debug -Zi)
     endif()
@@ -59,7 +74,9 @@ function(compile_shaders)
                                    --out ${params_DXIL}
                                    --compiler ${SHADERMAKE_DXC_PATH}
                                    --platform=DXIL
+                                   ${SHADERMAKE_COMPILER_OPTIONS}
                                    ${INCLUDE_PATH}
+                          VERBATIM
                                    )
     endif()
 
@@ -82,11 +99,13 @@ function(compile_shaders)
                                     --out ${params_SPIRV}
                                     --compiler ${SHADERMAKE_DXC_VK_PATH}
                                     --platform=SPIRV
+                                    ${SHADERMAKE_COMPILER_OPTIONS}
                                     --sRegShift=${OMM_VK_S_SHIFT}
                                     --tRegShift=${OMM_VK_T_SHIFT}
                                     --bRegShift=${OMM_VK_B_SHIFT}
                                     --uRegShift=${OMM_VK_U_SHIFT}
                                     ${INCLUDE_PATH}
+                            VERBATIM
                                     )
     endif()
 

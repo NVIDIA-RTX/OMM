@@ -409,6 +409,11 @@ OMM_API ommResult OMM_CALL ommDebugSaveBinaryToDisk(ommBaker baker, const ommCpu
 
 OMM_API ommResult OMM_CALL ommCreateBaker(const ommBakerCreationDesc* desc, ommBaker* baker)
 {
+    if (baker == nullptr)
+        return ommResult_INVALID_ARGUMENT;
+
+    *baker = nullptr;
+
     if (desc == 0)
         return ommResult_INVALID_ARGUMENT;
 

@@ -16,10 +16,12 @@ option(OMM_DISABLE_INTERPROCEDURAL_OPTIMIZATION "disable interprocedural optimiz
 option(OMM_ENABLE_OPENMP "enable openmp" ON)
 option(OMM_ENABLE_PRECOMPILED_SHADERS_DXIL "Embedded precompiled DXIL shaders. Require path to dxc.exe (normally located in Window SDK)." ${DXIL_DEFAULT})
 option(OMM_ENABLE_PRECOMPILED_SHADERS_SPIRV "Embedded precompiled SPIRV shaders. Require path to Vulkan SDK." ON)
+option(OMM_USE_RAW_INDEX_BUFFER "Use ByteAddressBuffer instead of Buffer<uint> for GPU input indices" OFF)
 option(OMM_STATIC_LIBRARY "build static lib" OFF)
 option(OMM_SHADER_DEBUG_INFO "enable embedded shader debug info" OFF)
 option(OMM_LIB_INSTALL "Generate install rules for OMM" ON)
 option(OMM_ENABLE_FAST_MATH "Enable fast math optimizations" ON)
+
 option(OMM_ENABLE_BMI2 "Enable BMI2 optimizations" ON)
 
 if (OMM_ENABLE_OPENMP)
@@ -34,9 +36,6 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_POSITION_INDEPENDENT_BINARIES ON)
 set(CMAKE_CXX_VISIBILITY_PRESET hidden)
 set(CMAKE_VISIBILITY_INLINES_HIDDEN ON)
-if (OMM_DISABLE_INTERPROCEDURAL_OPTIMIZATION)
-    set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
-endif()
 
 if ("${OMM_SHADER_OUTPUT_PATH}" STREQUAL "")
     set(OMM_SHADER_OUTPUT_PATH "${PROJECT_BINARY_DIR}/bin/shaders")
@@ -73,6 +72,29 @@ else()
     add_library(${OMM_LIB_TARGET_NAME} SHARED ${OMM_SOURCE} ${OMM_RESOURCE} ${OMM_HEADERS})
 endif()
 
+# Keep IPO local to the SDK and leave Debug compatible with runtime checks.
+# Explicitly override defaults inherited from a parent project, including its
+# configuration-specific defaults.
+set_property(TARGET ${OMM_LIB_TARGET_NAME} PROPERTY INTERPROCEDURAL_OPTIMIZATION OFF)
+set(_omm_ipo_configs Debug Release RelWithDebInfo MinSizeRel ${CMAKE_CONFIGURATION_TYPES} ${CMAKE_BUILD_TYPE})
+foreach(_omm_ipo_config IN LISTS _omm_ipo_configs)
+    string(TOUPPER "${_omm_ipo_config}" _omm_ipo_config_upper)
+    set_property(TARGET ${OMM_LIB_TARGET_NAME} PROPERTY INTERPROCEDURAL_OPTIMIZATION_${_omm_ipo_config_upper} OFF)
+endforeach()
+
+if (NOT OMM_DISABLE_INTERPROCEDURAL_OPTIMIZATION)
+    include(CheckIPOSupported)
+    check_ipo_supported(RESULT _omm_ipo_supported OUTPUT _omm_ipo_error LANGUAGES CXX)
+    if (_omm_ipo_supported)
+        foreach(_omm_ipo_config Release RelWithDebInfo MinSizeRel)
+            string(TOUPPER "${_omm_ipo_config}" _omm_ipo_config_upper)
+            set_property(TARGET ${OMM_LIB_TARGET_NAME} PROPERTY INTERPROCEDURAL_OPTIMIZATION_${_omm_ipo_config_upper} ON)
+        endforeach()
+    else()
+        message(STATUS "OMM-SDK interprocedural optimization unavailable: ${_omm_ipo_error}")
+    endif()
+endif()
+
 if(OMM_ENABLE_OPENMP AND OpenMP_CXX_FOUND)
     if(OpenMP_CXX_FOUND)
         target_link_libraries(${OMM_LIB_TARGET_NAME} OpenMP::OpenMP_CXX)
@@ -105,6 +127,8 @@ endif()
 if (OMM_ENABLE_PRECOMPILED_SHADERS_SPIRV)
     target_compile_definitions(${OMM_LIB_TARGET_NAME} PRIVATE OMM_ENABLE_PRECOMPILED_SHADERS_SPIRV)
 endif()
+target_compile_definitions(${OMM_LIB_TARGET_NAME} PRIVATE OMM_GPU_REFERENCE_MODE=$<BOOL:${OMM_GPU_REFERENCE_MODE}>)
+target_compile_definitions(${OMM_LIB_TARGET_NAME} PRIVATE OMM_USE_RAW_INDEX_BUFFER=$<BOOL:${OMM_USE_RAW_INDEX_BUFFER}>)
 
 if(WIN32)
     target_compile_definitions(${OMM_LIB_TARGET_NAME} PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX _CRT_SECURE_NO_WARNINGS _UNICODE UNICODE)
@@ -140,6 +164,10 @@ if (OMM_ENABLE_FAST_MATH)
     # Preserve operation order in UV interpolation and contour intersections.
     list(APPEND OMM_COMPILER_COMPILE_OPTIONS_GCC -ffast-math -fno-associative-math)
     # Clang fast math regresses CPU baking performance.
+else()
+    # Keep multiplication and addition rounding separate when fast math is disabled.
+    list(APPEND OMM_COMPILER_COMPILE_OPTIONS_GCC -ffp-contract=off)
+    list(APPEND OMM_COMPILER_COMPILE_OPTIONS_CLANG -ffp-contract=off)
 endif()
 
 list(APPEND OMM_COMPILER_COMPILE_OPTIONS_CLANG -Wno-missing-braces -Wno-return-type-c-linkage)

@@ -252,25 +252,8 @@ public:
         int2 coord00, coord10, coord01, coord11;
         omm::GatherTexCoord4<eTextureAddressMode, bTexIsPow2>(pixel, p->texture->GetSize(p->mipLevel), p->texture->GetSizeLog2(p->mipLevel), coord00, coord10, coord01, coord11);
 
-        auto IsBorder = [](int2 coord) {
-            return (coord.x == kTexCoordBorder || coord.y == kTexCoordBorder);
-        };
-
-        float4 gatherRed;
-        if constexpr (eTextureAddressMode == ommTextureAddressMode_Border)
-        {
-            gatherRed.x = IsBorder(coord00) ? p->borderAlpha : p->texture->Load<eFormat, eTilingMode>(coord00, p->mipLevel);
-            gatherRed.y = IsBorder(coord01) ? p->borderAlpha : p->texture->Load<eFormat, eTilingMode>(coord01, p->mipLevel);
-            gatherRed.z = IsBorder(coord11) ? p->borderAlpha : p->texture->Load<eFormat, eTilingMode>(coord11, p->mipLevel);
-            gatherRed.w = IsBorder(coord10) ? p->borderAlpha : p->texture->Load<eFormat, eTilingMode>(coord10, p->mipLevel);
-        }
-        else
-        {
-            gatherRed.x = p->texture->Load<eFormat, eTilingMode>(coord00, p->mipLevel);
-            gatherRed.y = p->texture->Load<eFormat, eTilingMode>(coord01, p->mipLevel);
-            gatherRed.z = p->texture->Load<eFormat, eTilingMode>(coord11, p->mipLevel);
-            gatherRed.w = p->texture->Load<eFormat, eTilingMode>(coord10, p->mipLevel);
-        }
+        const float4 gatherRed = p->texture->Gather<eFormat, eTilingMode, eTextureAddressMode == ommTextureAddressMode_Border>(
+            coord00, coord11, p->mipLevel, p->borderAlpha);
 
         // ~~~ Look for internal extremes ~~~ 
 		if (!bIsDegenerate)
@@ -424,15 +407,8 @@ struct ConservativeBilinearKernel
         int2 coord[TexelOffset::MAX_NUM];
         omm::GatherTexCoord4<eTextureAddressMode, bTexIsPow2>(int2(pixelf), p->size, p->sizeLog2, coord);
 
-        auto IsBorder = [](int2 coord) {
-            return eTextureAddressMode == ommTextureAddressMode_Border && (coord.x == kTexCoordBorder || coord.y == kTexCoordBorder);
-        };
-
-        float4 gatherRed;
-        gatherRed.x = IsBorder(coord[TexelOffset::I0x0]) ? p->borderAlpha : p->texture->Load<eFormat, eTilingMode>(coord[TexelOffset::I0x0], p->mipLevel);
-        gatherRed.y = IsBorder(coord[TexelOffset::I0x1]) ? p->borderAlpha : p->texture->Load<eFormat, eTilingMode>(coord[TexelOffset::I0x1], p->mipLevel);
-        gatherRed.z = IsBorder(coord[TexelOffset::I1x1]) ? p->borderAlpha : p->texture->Load<eFormat, eTilingMode>(coord[TexelOffset::I1x1], p->mipLevel);
-        gatherRed.w = IsBorder(coord[TexelOffset::I1x0]) ? p->borderAlpha : p->texture->Load<eFormat, eTilingMode>(coord[TexelOffset::I1x0], p->mipLevel);
+        const float4 gatherRed = p->texture->Gather<eFormat, eTilingMode, eTextureAddressMode == ommTextureAddressMode_Border>(
+            coord[TexelOffset::I0x0], coord[TexelOffset::I1x1], p->mipLevel, p->borderAlpha);
 
         const float min = std::min(std::min(std::min(gatherRed.x, gatherRed.y), gatherRed.z), gatherRed.w);
         const float max = std::max(std::max(std::max(gatherRed.x, gatherRed.y), gatherRed.z), gatherRed.w);

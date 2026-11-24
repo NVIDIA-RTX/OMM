@@ -346,6 +346,9 @@ namespace Cpu
                 m_stdAllocator.deallocate((uint8_t*)resultDesc.indexHistogram, 0);
             }
         }
+
+        DeallocateArray(m_stdAllocator, const_cast<ommCpuBakeInputDesc*>(m_inputDesc.inputDescs), m_inputDesc.numInputDescs);
+        DeallocateArray(m_stdAllocator, const_cast<ommCpuBakeResultDesc*>(m_inputDesc.resultDescs), m_inputDesc.numResultDescs);
     }
 
     ommResult DeserializedResultImpl::_Deserialize(Header& header, XXH64_hash_t hash, MemoryStreamBuf& buffer)

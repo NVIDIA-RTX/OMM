@@ -21,6 +21,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #include <unordered_map>
 #include <list>
 #include <shared_mutex>
+#include <string>
 
 constexpr uint32_t g_DebugRTVDimension =  6 * 1024;
 
@@ -202,8 +203,9 @@ class GpuBakeNvrhiImpl
 {
 public:
 
-	GpuBakeNvrhiImpl(nvrhi::DeviceHandle device, nvrhi::CommandListHandle commandList, bool enableDebug, GpuBakeNvrhi::ShaderProvider* shaderProvider, std::optional<GpuBakeNvrhi::MessageCallback> messageCallback);
+	GpuBakeNvrhiImpl(nvrhi::DeviceHandle device, nvrhi::CommandListHandle commandList, bool enableDebug, std::optional<GpuBakeNvrhi::MessageCallback> messageCallback);
 	~GpuBakeNvrhiImpl();
+	bool InitBaker(GpuBakeNvrhi::ShaderProvider* shaderProvider);
 
 	// CPU side pre-build info.
 	void GetPreDispatchInfo(const GpuBakeNvrhi::Input& params, GpuBakeNvrhi::PreDispatchInfo& info);
@@ -243,8 +245,8 @@ public:
 private:
 
 	void InitStaticBuffers(nvrhi::CommandListHandle commandList);
-	void InitBaker(GpuBakeNvrhi::ShaderProvider* shaderProvider);
 	void DestroyBaker();
+	void LogMessage(omm::MessageSeverity severity, const char* message);
 
 	void SetupPipelines(
 		const omm::Gpu::PipelineInfoDesc* desc,
@@ -275,29 +277,26 @@ private:
 	std::vector<nvrhi::BufferHandle> m_transientPool;
 	std::vector<nvrhi::ResourceHandle> m_pipelines;
 	std::vector<std::pair<nvrhi::SamplerHandle, uint32_t>> m_samplers;
-	BindingCache* m_bindingCache;
+	std::unique_ptr<BindingCache> m_bindingCache;
 
-	omm::Baker m_baker;
-	omm::Baker m_cpuBaker;
-	omm::Gpu::Pipeline m_pipeline;
+	omm::Baker m_baker = nullptr;
+	omm::Baker m_cpuBaker = nullptr;
+	omm::Gpu::Pipeline m_pipeline = nullptr;
 	bool m_enableDebug = false;
 	std::optional<GpuBakeNvrhi::MessageCallback> m_messageCallback;
 };
 
-GpuBakeNvrhiImpl::GpuBakeNvrhiImpl(nvrhi::DeviceHandle device, nvrhi::CommandListHandle commandList, bool enableDebug, GpuBakeNvrhi::ShaderProvider* shaderProvider, std::optional<GpuBakeNvrhi::MessageCallback> messageCallback)
+GpuBakeNvrhiImpl::GpuBakeNvrhiImpl(nvrhi::DeviceHandle device, nvrhi::CommandListHandle commandList, bool enableDebug, std::optional<GpuBakeNvrhi::MessageCallback> messageCallback)
 	: m_device(device)
-	, m_bindingCache(new BindingCache(device))
+	, m_bindingCache(std::make_unique<BindingCache>(device))
 	, m_enableDebug(enableDebug)
 	, m_messageCallback(messageCallback)
 {
 	InitStaticBuffers(commandList);
-	InitBaker(shaderProvider);
 }
 
 GpuBakeNvrhiImpl::~GpuBakeNvrhiImpl()
 {
-	delete m_bindingCache;
-	m_bindingCache = nullptr;
 	DestroyBaker();
 }
 
@@ -382,44 +381,55 @@ void GpuBakeNvrhiImpl::ReserveGlobalCBuffer(size_t byteSize, uint32_t slot)
 	m_globalCBufferSlot = slot;
 }
 
-void GpuBakeNvrhiImpl::InitBaker(GpuBakeNvrhi::ShaderProvider* shaderProvider)
+bool GpuBakeNvrhiImpl::InitBaker(GpuBakeNvrhi::ShaderProvider* shaderProvider)
 {
 	assert(m_device->getGraphicsAPI() == nvrhi::GraphicsAPI::D3D12 || m_device->getGraphicsAPI() == nvrhi::GraphicsAPI::VULKAN);
+
+	auto succeeded = [this](omm::Result result, const char* operation) {
+		if (result == omm::Result::SUCCESS)
+			return true;
+
+		const std::string message = std::string(operation) + " failed (omm::Result "
+			+ std::to_string(static_cast<int>(result)) + ").";
+		LogMessage(omm::MessageSeverity::Error, message.c_str());
+		return false;
+	};
+
+	omm::MessageInterface messageInterface;
+	messageInterface.userArg = this;
+	messageInterface.messageCallback = [](omm::MessageSeverity severity, const char* message, void* userArg) {
+		GpuBakeNvrhiImpl* self = static_cast<GpuBakeNvrhiImpl*>(userArg);
+		self->LogMessage(severity, message);
+	};
 
 	{
 		omm::BakerCreationDesc desc;
 		desc.type = omm::BakerType::GPU;
-		if (m_messageCallback.has_value())
-		{
-			desc.messageInterface.userArg = this;
-			desc.messageInterface.messageCallback = [](omm::MessageSeverity severity, const char* message, void* userArg) {
-				GpuBakeNvrhiImpl* _this = (GpuBakeNvrhiImpl*)userArg;
-				_this->m_messageCallback.value()(severity, message);
-			};
-		}
+		desc.messageInterface = messageInterface;
 
-		omm::Result res = omm::CreateBaker(desc, &m_baker);
-		assert(res == omm::Result::SUCCESS);
+		if (!succeeded(omm::CreateBaker(desc, &m_baker), "GPU baker creation"))
+			return false;
 	}
 
 	{
 		omm::BakerCreationDesc desc;
 		desc.type = omm::BakerType::CPU;
+		desc.messageInterface = messageInterface;
 
-		omm::Result res = omm::CreateBaker(desc, &m_cpuBaker);
-		assert(res == omm::Result::SUCCESS);
+		if (!succeeded(omm::CreateBaker(desc, &m_cpuBaker), "CPU baker creation"))
+			return false;
 	}
 
 	{
 		omm::Gpu::PipelineConfigDesc config;
 		config.renderAPI = m_device->getGraphicsAPI() == nvrhi::GraphicsAPI::D3D12 ? omm::Gpu::RenderAPI::DX12 : omm::Gpu::RenderAPI::Vulkan;
 
-		omm::Result res = omm::Gpu::CreatePipeline(m_baker, config, &m_pipeline);
-		assert(res == omm::Result::SUCCESS);
+		if (!succeeded(omm::Gpu::CreatePipeline(m_baker, config, &m_pipeline), "GPU pipeline creation"))
+			return false;
 
-		const omm::Gpu::PipelineInfoDesc* desc;
-		res = omm::Gpu::GetPipelineDesc(m_pipeline, &desc);
-		assert(res == omm::Result::SUCCESS);
+		const omm::Gpu::PipelineInfoDesc* desc = nullptr;
+		if (!succeeded(omm::Gpu::GetPipelineDesc(m_pipeline, &desc), "GPU pipeline description"))
+			return false;
 
 		SetupPipelines(desc, shaderProvider);
 
@@ -427,18 +437,37 @@ void GpuBakeNvrhiImpl::InitBaker(GpuBakeNvrhi::ShaderProvider* shaderProvider)
 		m_localCBufferSlot = desc->localConstantBufferDesc.registerIndex;
 		m_localCBufferSize = desc->localConstantBufferDesc.maxDataSize;
 	}
+	return true;
+}
+
+void GpuBakeNvrhiImpl::LogMessage(omm::MessageSeverity severity, const char* message)
+{
+	if (m_messageCallback && *m_messageCallback)
+		(*m_messageCallback)(severity, message);
+	else if (nvrhi::IMessageCallback* callback = m_device->getMessageCallback())
+		callback->message(static_cast<nvrhi::MessageSeverity>(severity), message);
 }
 
 void GpuBakeNvrhiImpl::DestroyBaker()
 {
-	omm::Result res = omm::Gpu::DestroyPipeline(m_baker, m_pipeline);
-	assert(res == omm::Result::SUCCESS);
-
-	res = omm::DestroyBaker(m_baker);
-	assert(res == omm::Result::SUCCESS);
-
-	res = omm::DestroyBaker(m_cpuBaker);
-	assert(res == omm::Result::SUCCESS);
+	if (m_pipeline)
+	{
+		omm::Result res = omm::Gpu::DestroyPipeline(m_baker, m_pipeline);
+		assert(res == omm::Result::SUCCESS);
+		m_pipeline = nullptr;
+	}
+	if (m_baker)
+	{
+		omm::Result res = omm::DestroyBaker(m_baker);
+		assert(res == omm::Result::SUCCESS);
+		m_baker = nullptr;
+	}
+	if (m_cpuBaker)
+	{
+		omm::Result res = omm::DestroyBaker(m_cpuBaker);
+		assert(res == omm::Result::SUCCESS);
+		m_cpuBaker = nullptr;
+	}
 }
 
 void GpuBakeNvrhiImpl::SetupPipelines(
@@ -1264,8 +1293,16 @@ GpuBakeNvrhi::Stats GpuBakeNvrhiImpl::GetStats(const omm::Cpu::BakeResultDesc& d
 }
 
 
-GpuBakeNvrhi::GpuBakeNvrhi(nvrhi::DeviceHandle device, nvrhi::CommandListHandle commandList, bool enableDebug, ShaderProvider* shaderProvider, std::optional<MessageCallback> callback)
-	:m_impl(std::make_unique<GpuBakeNvrhiImpl>(device, commandList, enableDebug, shaderProvider, callback))
+std::unique_ptr<GpuBakeNvrhi> GpuBakeNvrhi::Create(nvrhi::DeviceHandle device, nvrhi::CommandListHandle commandList, bool enableDebug, ShaderProvider* shaderProvider, std::optional<MessageCallback> callback)
+{
+	auto impl = std::make_unique<GpuBakeNvrhiImpl>(device, commandList, enableDebug, callback);
+	if (!impl->InitBaker(shaderProvider))
+		return nullptr;
+	return std::unique_ptr<GpuBakeNvrhi>(new GpuBakeNvrhi(std::move(impl)));
+}
+
+GpuBakeNvrhi::GpuBakeNvrhi(std::unique_ptr<GpuBakeNvrhiImpl> impl)
+	:m_impl(std::move(impl))
 {
 
 }

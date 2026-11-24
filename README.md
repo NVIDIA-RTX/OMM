@@ -100,7 +100,7 @@ Requires CMake 4.1 or newer.
 
 7. Build the solution with Visual Studio 
 
-8. Either run the `INSTALL` project to generate header and binaries that can be linked to your project, or run `Tests` to run the unit tests.
+8. Either run the `INSTALL` project to generate header and binaries that can be linked to your project, or configure with `OMM_ENABLE_TESTS=ON` and run `Tests` to run the unit tests.
 
 9. If running ``INSTALL`` the following binaries will be generated in the cmake output folder which can be used to link to the client application.
 ```
@@ -115,6 +115,26 @@ Requires CMake 4.1 or newer.
 ```
 10. If running `Tests` and CMake have been configured with `-DOMM_TEST_ENABLE_IMAGE_DUMP` a folder with image files will be located in `D:\Opacity-MicroMap-SDK\build\tests\OmmBakeOutput` and  `D:\Opacity-MicroMap-SDK\build\tests\OmmBakeOutput_GPU`
 
+## CPU bake benchmark
+
+The `omm-cpu-benchmark` command-line tool bakes the bundled
+`assets/omm_example_data/leaves.bin` using its serialized settings. It requires
+only the CPU SDK library and can be built with the viewer and tests disabled.
+
+```powershell
+cmake -S . -B build -DOMM_BUILD_BENCHMARK=ON
+cmake --build build --config Release --target omm-cpu-benchmark
+.\build\bin\Release\omm-cpu-benchmark.exe --iterations 5 --warmup 1
+```
+
+Each iteration bakes every input in the blob. The tool prints individual times
+and minimum, median, mean, and maximum bake time. File loading, deserialization,
+warmup, and result destruction are excluded from the measurements. Use
+`--threads on` or `--threads off` to override internal threading, or `--input PATH`
+to benchmark another serialized blob. Otherwise the saved bake settings are
+preserved. Run `--help` for all options. Build with `-DOMM_BUILD_BENCHMARK=OFF`
+to omit the tool.
+
 ## CMake options
 `-DOMM_STATIC_LIBRARY=ON` - Will configure the omm-sdk project as either a SHARED (OFF) or STATIC (ON) target in CMake. 
 
@@ -122,9 +142,19 @@ Requires CMake 4.1 or newer.
 
 `-DOMM_ENABLE_PRECOMPILED_SHADERS_SPIRV=ON` - Enable this when using the GPU baker with precompiled shaders in Vulkan. The SPIRV will be part of the generated library files (.dll) and can be used direct to create the nessesary pipeline state objects at runtime. This may get disabled if Vulkan SDK is not found on the system.
 
+`-DOMM_USE_RAW_INDEX_BUFFER=ON` - Use a raw `ByteAddressBuffer` for GPU input indices, with software unpacking of 8-bit, 16-bit, and 32-bit indices. Defaults to `OFF`, which uses a typed `Buffer<uint>`. Applies to embedded DXIL and SPIR-V shaders and their resource descriptions. See [GPU input index buffers](docs/integration_guide.md#gpu-input-index-buffers) for custom shader integration.
+
 `-DOMM_ENABLE_BMI2=ON` - Enable BMI2 optimizations for x86-64 targets.
 
-`-DOMM_ENABLE_FAST_MATH=ON` - Enable fast math optimizations.
+`-DOMM_ENABLE_FAST_MATH=ON` - Enable CPU fast math optimizations.
+
+`-DOMM_ENABLE_TESTS=ON` - Build unit tests (disabled by default), including direct CPU tests of the shared `omm_software_math.h` integer square-root/division utility. CPU tests also exercise the actual HLSL sampling helper through a small compatibility shim. These tests use strict floating-point settings and run without a GPU.
+
+`-DOMM_ENABLE_GPU_TESTS=ON` - Include GPU tests when unit tests are enabled. Enable `OMM_GPU_REFERENCE_MODE` for accurate compute-test comparisons. Reference mode registers only compute bake configurations; otherwise, graphics and compute configurations are registered. GPU tests can run without reference mode; CMake warns and `GpuTest.ReferenceMode` fails explicitly, while the remaining tests still run with the selected settings.
+
+`-DOMM_GPU_REFERENCE_MODE=ON` - Select software square roots, division, and sampling with precise arithmetic (`-Gis`) and disabled shader optimizations (`-Od`, including the DXIL driver optimization flag) for all GPU baker shader stages. This single GPU math setting defaults to `OFF`, which uses native math, hardware sampling, and optimized shaders. GPU tests never enable it automatically. GPU baker creation reports a `PerfWarning` through the supplied SDK message callback when this mode is enabled. Reference-mode GPU tests also require Windows Developer Mode and `ID3D12Device6` to disable driver background optimizations before creating pipelines; setup fails if the policy cannot be applied. CPU `OMM_ENABLE_FAST_MATH` is independent. See [GPU determinism](docs/integration_guide.md#gpu-determinism) for instructions and remaining sources of variation.
+
+`-DOMM_TEST_USE_WARP=ON` - Run Windows GPU tests using the D3D12 WARP software adapter, including on hosts without a physical GPU. Disabled by default.
 
 `-DOMM_SHADER_DEBUG_INFO=OFF` - Will include and embed shader debug (-Zi, -Qembed_debug) info when running OMM_ENABLE_PRECOMPILED_SHADERS_DXIL=ON or OMM_ENABLE_PRECOMPILED_SHADERS_SPIRV=ON. Only recommended for debugging purpuses.
 

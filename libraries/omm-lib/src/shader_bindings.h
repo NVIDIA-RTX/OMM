@@ -9,6 +9,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 */
 
 #include <omm.h>
+#include "omm_index_buffer.hlsli"
 #include "util/math.h"
 
 #include "std_allocator.h"

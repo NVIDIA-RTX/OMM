@@ -43,7 +43,10 @@ namespace omm
             }
             else
             {
-                return int2(uint2(texCoord) % uint2(texSize));
+                // Signed remainder, shifted into [0, texSize) for negative coordinates.
+                const int2 wrapped = texCoord % texSize;
+                return { wrapped.x < 0 ? wrapped.x + texSize.x : wrapped.x,
+                         wrapped.y < 0 ? wrapped.y + texSize.y : wrapped.y };
             }
         }
         case ommTextureAddressMode_Mirror: {

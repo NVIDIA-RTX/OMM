@@ -29,11 +29,12 @@ namespace omm
 
    enum class MessageSeverity
    {
-       Info,
-       Warning,
-       PerfWarning,
-       Fatal,
-       MAX_NUM,
+       Info = ommMessageSeverity_Info,
+       PerfWarning = ommMessageSeverity_PerfWarning,
+       Warning = PerfWarning,
+       Error = ommMessageSeverity_Error,
+       Fatal = ommMessageSeverity_Fatal,
+       MAX_NUM = ommMessageSeverity_MAX_NUM,
    };
 
    enum class OpacityState
@@ -832,8 +833,10 @@ namespace omm
          IndexFormat         indexFormat                   = IndexFormat::MAX_NUM;
          // The actual number of indices can be lower.
          uint32_t            indexCount                    = 0;
+         // Base offset in index elements within the bound view, independent of indexStrideInBytes.
          uint32_t            indexOffset                   = 0;
-         // If zero packed aligment is assumed.
+         // Raw input buffers only; ignored for typed input buffers.
+         // Zero selects tightly packed indices. Otherwise, at least and a multiple of the index element size.
          uint32_t            indexStrideInBytes            = 0;
          // The alpha cutoff value. By default it's Texel Opacity = texture > alphaCutoff ? Opaque : Transparent
          float               alphaCutoff                   = 0.5f;
