@@ -15,7 +15,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #include <stddef.h>
 
 #define OMM_VERSION_MAJOR 1
-#define OMM_VERSION_MINOR 10
+#define OMM_VERSION_MINOR 12
 #define OMM_VERSION_BUILD 0
 
 #define OMM_MAX_TRANSIENT_POOL_BUFFERS 8
@@ -1017,8 +1017,11 @@ typedef struct ommGpuDispatchConfigDesc
    ommIndexFormat            indexFormat;
    // The actual number of indices can be lower.
    uint32_t                  indexCount;
+   // Base offset in index elements within the bound view, independent of indexStrideInBytes.
+   // Its byte offset is indexOffset * the index element size.
    uint32_t                  indexOffset;
-   // If zero packed aligment is assumed.
+   // Raw input buffers only; ignored for typed input buffers.
+   // Zero selects tightly packed indices. Otherwise, at least and a multiple of the index element size.
    uint32_t                  indexStrideInBytes;
    // The alpha cutoff value. By default it's Texel Opacity = texture > alphaCutoff ? Opaque : Transparent
    float                     alphaCutoff;

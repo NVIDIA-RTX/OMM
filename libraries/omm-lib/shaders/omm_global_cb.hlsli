@@ -22,7 +22,7 @@ OMM_CONSTANTS_START(GlobalConstants)							\
 	OMM_CONSTANT(uint, DoSetup)									\
 	OMM_CONSTANT(uint, SamplerIndex)							\
 	OMM_CONSTANT(uint, BakeResultBufferSize)					\
-	OMM_CONSTANT(uint, Pad0)									\
+	OMM_CONSTANT(uint, TextureAddressMode)					\
 																\
 	OMM_CONSTANT(float2, ViewportSize)							\
 	OMM_CONSTANT(float2, InvViewportSize)						\
@@ -34,22 +34,22 @@ OMM_CONSTANTS_START(GlobalConstants)							\
 	OMM_CONSTANT(uint, OMMFormat)								\
 	OMM_CONSTANT(uint, TexCoordHashTableEntryCount)				\
 	OMM_CONSTANT(float, DynamicSubdivisionScale)				\
-	OMM_CONSTANT(float, Pad1)									\
+	OMM_CONSTANT(float, BorderAlpha)							\
 																\
 	OMM_CONSTANT(uint, TexCoordFormat)							\
 	OMM_CONSTANT(uint, TexCoordOffset)							\
 	OMM_CONSTANT(uint, TexCoordStride)							\
-	OMM_CONSTANT(uint, Pad2)									\
+	OMM_CONSTANT(uint, FilterType) /* TextureFilterMode */ 		\
+																\
+	OMM_CONSTANT(uint, InputIndexSize)							\
+	OMM_CONSTANT(uint, InputIndexStride)						\
+	OMM_CONSTANT(uint, EnableLevelLine)							\
+	OMM_CONSTANT(uint, EnablePostDispatchInfoStats)				\
 																\
 	OMM_CONSTANT(float, AlphaCutoff)							\
 	OMM_CONSTANT(uint, AlphaCutoffLessEqual)					\
 	OMM_CONSTANT(uint, AlphaCutoffGreater)						\
 	OMM_CONSTANT(uint, AlphaTextureChannel)						\
-																\
-	OMM_CONSTANT(uint, FilterType) /* TextureFilterMode */ 		\
-	OMM_CONSTANT(uint, EnableLevelLine)							\
-	OMM_CONSTANT(uint, EnablePostDispatchInfoStats)				\
-	OMM_CONSTANT(uint, IndirectDispatchEntryStride)				\
 																\
 	OMM_CONSTANT(float2, TexSize)								\
 	OMM_CONSTANT(float2, InvTexSize)							\
@@ -73,6 +73,6 @@ OMM_CONSTANTS_START(GlobalConstants)							\
 	OMM_CONSTANT(uint, SpecialIndicesStateBufferOffset)			\
 	OMM_CONSTANT(uint, TempOmmBakeScheduleTrackerBufferOffset)	\
 	OMM_CONSTANT(uint, AssertBufferOffset)						\
-	OMM_CONSTANT(uint, Pad3)									\
+	OMM_CONSTANT(uint, IndirectDispatchEntryStride)				\
 																\
 OMM_CONSTANTS_END(GlobalConstants, 0)

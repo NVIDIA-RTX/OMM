@@ -140,7 +140,8 @@ namespace omm
 			uint32_t totalFullyUnknownTransparent = 0;
 		};
 
-		GpuBakeNvrhi(nvrhi::DeviceHandle device, nvrhi::CommandListHandle commandList, bool enableDebug, ShaderProvider* shaderProvider = nullptr, std::optional<MessageCallback> callback = nullptr);
+		// Returns nullptr on initialization failure; errors go to the callback or NVRHI device log.
+		static std::unique_ptr<GpuBakeNvrhi> Create(nvrhi::DeviceHandle device, nvrhi::CommandListHandle commandList, bool enableDebug, ShaderProvider* shaderProvider = nullptr, std::optional<MessageCallback> callback = std::nullopt);
 		~GpuBakeNvrhi();
 
 		// CPU side pre-build info.
@@ -179,6 +180,7 @@ namespace omm
 		Stats GetStats(const omm::Cpu::BakeResultDesc& desc);
 
 	private:
+		explicit GpuBakeNvrhi(std::unique_ptr<GpuBakeNvrhiImpl> impl);
 		std::unique_ptr< GpuBakeNvrhiImpl> m_impl;
 	};
 } // namespace omm

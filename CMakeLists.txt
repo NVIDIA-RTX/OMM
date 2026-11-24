@@ -1,7 +1,9 @@
 cmake_minimum_required(VERSION 4.1)
 
+option(OMM_BUILD_BENCHMARK "Build the CPU bake benchmark" ON)
+
 if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/external/gtest)
-	option(OMM_ENABLE_TESTS "Enable unit test" ON)
+	option(OMM_ENABLE_TESTS "Enable unit test" OFF)
 endif()
 
 if (EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/external/donut)
@@ -31,6 +33,23 @@ set(ver_patch ${CMAKE_MATCH_1})
 project("Opacity Micro-Map SDK" VERSION ${ver_major}.${ver_minor}.${ver_patch} LANGUAGES CXX)
 message(STATUS "${PROJECT_NAME} version: ${ver_major}.${ver_minor}.${ver_patch}")
 
+if (WIN32)
+    option(OMM_ENABLE_GPU_TESTS "Build GPU tests" ${OMM_ENABLE_TESTS})
+    if (OMM_BUILD_VIEWER OR OMM_ENABLE_GPU_TESTS)
+        set(OMM_NVRHI_INTEGRATION_DEFAULT ON)
+    else()
+        set(OMM_NVRHI_INTEGRATION_DEFAULT OFF)
+    endif()
+    option(OMM_INTEGRATION_LAYER_NVRHI "Build nvrhi integration layer" ${OMM_NVRHI_INTEGRATION_DEFAULT})
+else()
+    option(OMM_ENABLE_GPU_TESTS "Build GPU tests" OFF)
+    option(OMM_INTEGRATION_LAYER_NVRHI "Build nvrhi integration layer" OFF)
+endif()
+
+option(OMM_GPU_REFERENCE_MODE "Use precise, unoptimized software GPU math and sampling" OFF)
+set(OMM_ENABLE_PRECISE_GPU_MATH ${OMM_GPU_REFERENCE_MODE})
+set(OMM_DISABLE_GPU_SHADER_OPTIMIZATIONS ${OMM_GPU_REFERENCE_MODE})
+
 set (CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
 set (CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
 message(STATUS "${CMAKE_BINARY_DIR}")
@@ -55,6 +74,24 @@ else()
 	option(OMM_BUILD_OMM_GPU_NVRHI "Build omm gpu nvrhi layer" OFF)
 endif()
 
+if (OMM_GPU_REFERENCE_MODE)
+    message(STATUS "GPU reference mode uses precise, unoptimized software sqrt, division, and texture sampling")
+endif()
+if (OMM_ENABLE_TESTS AND OMM_ENABLE_GPU_TESTS)
+    if (NOT WIN32 OR NOT OMM_BUILD_OMM_GPU_NVRHI OR NOT OMM_INTEGRATION_LAYER_NVRHI OR NOT TARGET nvrhi_d3d12)
+        message(WARNING "GPU tests require Windows and the NVRHI D3D12 integration. Disabling OMM_ENABLE_GPU_TESTS.")
+        set(OMM_ENABLE_GPU_TESTS OFF)
+    else()
+        if (NOT OMM_GPU_REFERENCE_MODE)
+            message(WARNING
+                "GPU tests are enabled without OMM_GPU_REFERENCE_MODE. "
+                "Enable OMM_GPU_REFERENCE_MODE for accurate comparison with the fixed compute reference values. "
+                "The GpuTest.ReferenceMode check will fail; remaining tests will run with the selected shader settings.")
+        endif()
+        set(OMM_ENABLE_PRECOMPILED_SHADERS_DXIL ON)
+    endif()
+endif()
+
 add_subdirectory(libraries/omm-lib)
 
 if (OMM_BUILD_OMM_GPU_NVRHI)
@@ -63,6 +100,10 @@ endif()
 
 if (OMM_BUILD_VIEWER)
     add_subdirectory(tools/viewer)
+endif()
+
+if (OMM_BUILD_BENCHMARK)
+    add_subdirectory(tools/benchmark)
 endif()
 
 if (OMM_ENABLE_TESTS)

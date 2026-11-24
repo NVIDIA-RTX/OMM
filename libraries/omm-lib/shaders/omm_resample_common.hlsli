@@ -10,6 +10,17 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 #ifndef IN_ALPHA_TEXTURE_CHANNEL
 #error "IN_ALPHA_TEXTURE_CHANNEL must be defined"
+#elif IN_ALPHA_TEXTURE_CHANNEL < 0 || IN_ALPHA_TEXTURE_CHANNEL > 3
+#error "IN_ALPHA_TEXTURE_CHANNEL must be between 0 and 3"
+#endif
+
+#if defined(OMM_GPU_REFERENCE_MODE) && OMM_GPU_REFERENCE_MODE
+#include "omm_software_sqrt.hlsli"
+#include "omm_software_sampling.hlsli"
+#include "omm_software_divide.hlsli"
+#define OMM_RESAMPLE_DIVIDE OmmSoftwareDivide
+#else
+#define OMM_RESAMPLE_DIVIDE(numerator, denominator) ((numerator) / (denominator))
 #endif
 
 #if 0
@@ -20,6 +31,47 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 namespace raster
 {
+    float4 SampleAlphaTexture(float2 texCoord)
+    {
+#if defined(OMM_GPU_REFERENCE_MODE) && OMM_GPU_REFERENCE_MODE
+        return OmmSoftwareSampleLevel(t_alphaTexture, texCoord, uint2(g_GlobalConstants.TexSize),
+            g_GlobalConstants.TextureAddressMode, g_GlobalConstants.FilterType, g_GlobalConstants.BorderAlpha);
+#else
+        return t_alphaTexture.SampleLevel(OMM_GLOBAL_SAMPLER(g_GlobalConstants.SamplerIndex), texCoord, 0);
+#endif
+    }
+
+    float4 GatherAlphaTexture(float2 texCoord)
+    {
+#if defined(OMM_GPU_REFERENCE_MODE) && OMM_GPU_REFERENCE_MODE
+        return OmmSoftwareGather(t_alphaTexture, texCoord, uint2(g_GlobalConstants.TexSize),
+            g_GlobalConstants.TextureAddressMode, IN_ALPHA_TEXTURE_CHANNEL, g_GlobalConstants.BorderAlpha);
+#elif IN_ALPHA_TEXTURE_CHANNEL == 0
+        return t_alphaTexture.GatherRed(OMM_GLOBAL_SAMPLER(g_GlobalConstants.SamplerIndex), texCoord, 0);
+#elif IN_ALPHA_TEXTURE_CHANNEL == 1
+        return t_alphaTexture.GatherGreen(OMM_GLOBAL_SAMPLER(g_GlobalConstants.SamplerIndex), texCoord, 0);
+#elif IN_ALPHA_TEXTURE_CHANNEL == 2
+        return t_alphaTexture.GatherBlue(OMM_GLOBAL_SAMPLER(g_GlobalConstants.SamplerIndex), texCoord, 0);
+#else
+        return t_alphaTexture.GatherAlpha(OMM_GLOBAL_SAMPLER(g_GlobalConstants.SamplerIndex), texCoord, 0);
+#endif
+    }
+#if defined(OMM_GPU_REFERENCE_MODE) && OMM_GPU_REFERENCE_MODE
+    float ReferenceLength(float2 value)
+    {
+        const precise float squaredX = value.x * value.x;
+        const precise float squaredY = value.y * value.y;
+        const precise float squaredLength = squaredX + squaredY;
+        return OmmSoftwareSqrt(squaredLength);
+    }
+#define OMM_RESAMPLE_SQRT OmmSoftwareSqrt
+#define OMM_RESAMPLE_LENGTH ReferenceLength
+#else
+    // Preserve the original native expressions outside reference tests.
+#define OMM_RESAMPLE_SQRT sqrt
+#define OMM_RESAMPLE_LENGTH length
+#endif
+
 #define ENABLE_LEVEL_LINE_INTERSECTION  (1)
 #define ENABLE_EXACT_CLASSIFICATION     (0) // The exact classification is expensive. This should only be enabled for debug purposes.
 
@@ -70,11 +122,11 @@ namespace raster
         {
             _p0 = p0;
             _p1 = p1;
-            _length = length(p1 - p0);
+            _length = OMM_RESAMPLE_LENGTH(p1 - p0);
         }
 
         bool IsPointOnEdge(PRECISE float2 p) {
-            return IsZero(length(p - _p0) + length(p - _p1) - _length);
+            return IsZero(OMM_RESAMPLE_LENGTH(p - _p0) + OMM_RESAMPLE_LENGTH(p - _p1) - _length);
         }
         // private
         PRECISE float2 _p0;
@@ -127,7 +179,7 @@ namespace raster
             }
             else
             {
-                const PRECISE float y = -c1 / c0;
+                const PRECISE float y = OMM_RESAMPLE_DIVIDE(-c1, c0);
 
                 return IsPointInsideUnitSquare(float2(x, y)) && edge.IsPointOnEdge(float2(x, y));
             }
@@ -135,7 +187,7 @@ namespace raster
         else // k_denum != 0
         {
             const PRECISE float k_enum = (p1.y - p0.y);
-            const PRECISE float k = k_enum / k_denum;
+            const PRECISE float k = OMM_RESAMPLE_DIVIDE(k_enum, k_denum);
             const PRECISE float m = p1.y - p1.x * k;
 
             const PRECISE float c0 = d * k;
@@ -152,7 +204,7 @@ namespace raster
                 else
                 {
                     // Intersection point of non-parallel straight lines
-                    const PRECISE float x = -c2 / c1;
+                    const PRECISE float x = OMM_RESAMPLE_DIVIDE(-c2, c1);
                     const PRECISE float y = k * x + m;
 
                     return IsPointInsideUnitSquare(float2(x, y)) && edge.IsPointOnEdge(float2(x, y));
@@ -167,9 +219,9 @@ namespace raster
 
                 if (isRealValued)
                 {
-                    const PRECISE float root = sqrt(innerRoot); // NOTE: check that it's > 0!
-                    const PRECISE float x0 = 0.5f * (-c1 + root) / c0;
-                    const PRECISE float x1 = 0.5f * (-c1 - root) / c0;
+                    const PRECISE float root = OMM_RESAMPLE_SQRT(innerRoot); // NOTE: check that it's > 0!
+                    const PRECISE float x0 = OMM_RESAMPLE_DIVIDE(0.5f * (-c1 + root), c0);
+                    const PRECISE float x1 = OMM_RESAMPLE_DIVIDE(0.5f * (-c1 - root), c0);
 
                     const PRECISE float2 pX0 = float2(x0, k * x0 + m);
                     const PRECISE float2 pX1 = float2(x1, k * x1 + m);
@@ -199,17 +251,7 @@ namespace raster
             if (g_GlobalConstants.EnableLevelLine)
             {
 
-            #if IN_ALPHA_TEXTURE_CHANNEL == 0
-                const PRECISE float4 gatherAlpha = t_alphaTexture.GatherRed(s_samplers[g_GlobalConstants.SamplerIndex], texCoord.xy, 0);
-            #elif IN_ALPHA_TEXTURE_CHANNEL == 1
-                const PRECISE float4 gatherAlpha = t_alphaTexture.GatherGreen(s_samplers[g_GlobalConstants.SamplerIndex], texCoord.xy, 0);
-            #elif IN_ALPHA_TEXTURE_CHANNEL == 2
-                const PRECISE float4 gatherAlpha = t_alphaTexture.GatherBlue(s_samplers[g_GlobalConstants.SamplerIndex], texCoord.xy, 0);
-            #elif IN_ALPHA_TEXTURE_CHANNEL == 3
-                const PRECISE float4 gatherAlpha = t_alphaTexture.GatherAlpha(s_samplers[g_GlobalConstants.SamplerIndex], texCoord.xy, 0);
-            #else
-            #error "unexpected value of IN_ALPHA_TEXTURE_CHANNEL"
-            #endif
+                const PRECISE float4 gatherAlpha = GatherAlphaTexture(texCoord.xy);
 
                 // ~~~ Look for internal extremes ~~~ 
                 if (true)
@@ -353,17 +395,7 @@ namespace raster
             }
             else
             {
-                #if IN_ALPHA_TEXTURE_CHANNEL == 0
-                    const PRECISE float4 alpha = t_alphaTexture.GatherRed(s_samplers[g_GlobalConstants.SamplerIndex], texCoord.xy, 0);
-                #elif IN_ALPHA_TEXTURE_CHANNEL == 1
-                    const PRECISE float4 alpha = t_alphaTexture.GatherGreen(s_samplers[g_GlobalConstants.SamplerIndex], texCoord.xy, 0);
-                #elif IN_ALPHA_TEXTURE_CHANNEL == 2
-                    const PRECISE float4 alpha = t_alphaTexture.GatherBlue(s_samplers[g_GlobalConstants.SamplerIndex], texCoord.xy, 0);
-                #elif IN_ALPHA_TEXTURE_CHANNEL == 3
-                    const PRECISE float4 alpha = t_alphaTexture.GatherAlpha(s_samplers[g_GlobalConstants.SamplerIndex], texCoord.xy, 0);
-                #else
-                #error "unexpected value of IN_ALPHA_TEXTURE_CHANNEL"
-                #endif
+                    const PRECISE float4 alpha = GatherAlphaTexture(texCoord.xy);
 
                     const PRECISE float min_a = min(alpha.x, min(alpha.y, min(alpha.z, alpha.w)));
                     const PRECISE float max_a = max(alpha.x, max(alpha.y, max(alpha.z, alpha.w)));
@@ -374,7 +406,7 @@ namespace raster
         }
         else // if (mode == TextureFilterMode::Nearest)
         {
-            const PRECISE float4 color = t_alphaTexture.SampleLevel(s_samplers[g_GlobalConstants.SamplerIndex], texCoord.xy, 0);
+            const PRECISE float4 color = SampleAlphaTexture(texCoord.xy);
 
         #if IN_ALPHA_TEXTURE_CHANNEL == 0
                 const PRECISE float alpha = color.r;
@@ -392,3 +424,7 @@ namespace raster
         }
     }
 }
+
+#undef OMM_RESAMPLE_SQRT
+#undef OMM_RESAMPLE_LENGTH
+#undef OMM_RESAMPLE_DIVIDE

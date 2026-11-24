@@ -324,24 +324,6 @@ namespace omm
         return ommResult_SUCCESS;
     }
 
-    template<>
-    uint32_t TextureImpl::From2Dto1D<TilingMode::Linear>(const int2& idx, const int2& size)
-    {
-        return idx.x + idx.y * uint32_t(size.x);
-    }
-
-    template<>
-    uint32_t TextureImpl::From2Dto1D<TilingMode::MortonZ>(const int2& idx, const int2& size)
-    {
-        // Based on
-        // "Optimizing Memory Access on GPUs using Morton Order Indexing"
-        // https://www.nocentino.com/Nocentino10.pdf
-        // return mortonNumberBinIntl(idx.x, idx.y);
-
-        // https://www.forceflow.be/2013/10/07/morton-encodingdecoding-through-bit-interleaving-implementations/
-        return xy_to_morton(idx.x, idx.y);
-    }
-
     template<> uint2 TextureImpl::From1Dto2D<TilingMode::Linear>(const uint32_t idx, const int2& size)
     {
         uint2 pos;

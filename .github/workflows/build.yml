@@ -7,21 +7,57 @@ on:
     branches:
       - main-minimal
 jobs:
-  Build-Windows:
-    runs-on: windows-latest
+  Build:
+    name: Build-${{ matrix.platform }}-${{ matrix.arch }} (${{ matrix.gpu-tests && 'CPU + GPU' || 'CPU only' }} tests)
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            platform: Windows
+            arch: x64
+            gpu-tests: true
+            cmake-args: -A x64
+            test-command: ./tests.exe
+            artifact-name: Opacity Micro-Map SDK Windows
+          - os: ubuntu-22.04
+            platform: Linux
+            arch: x64
+            gpu-tests: false
+            cmake-args: -G "Ninja Multi-Config"
+            test-command: ./tests
+            artifact-name: Opacity Micro-Map SDK Linux
+          - os: windows-11-arm
+            platform: Windows
+            arch: ARM64
+            gpu-tests: false
+            cmake-args: -A ARM64
+            test-command: ./tests.exe
+            artifact-name: Opacity Micro-Map SDK Windows ARM64
+          - os: ubuntu-24.04-arm
+            platform: Linux
+            arch: ARM64
+            gpu-tests: false
+            cmake-args: -G "Ninja Multi-Config"
+            test-command: ./tests
+            artifact-name: Opacity Micro-Map SDK Linux ARM64 CPU
+    defaults:
+      run:
+        shell: bash
     steps:
-      -
-        name : Checkout
-        uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
           submodules: 'recursive'
-      -
-        name: Install dependencies
+      - name: Install Windows dependencies
+        if: runner.os == 'Windows' && matrix.arch == 'x64'
         uses: crazy-max/ghaction-chocolatey@v2
         with:
-          args: install windows-sdk-10.0 cmake -y
-      -
-        name: Install Vulkan
+          args: install windows-sdk-10.0 -y
+      - name: Install Windows Vulkan SDK
+        if: runner.os == 'Windows' && matrix.arch == 'x64'
+        shell: pwsh
         run: |
           $ver = (Invoke-WebRequest -Uri "https://vulkan.lunarg.com/sdk/latest.json" | ConvertFrom-Json).windows
           echo Vulkan SDK version $ver
@@ -29,74 +65,89 @@ jobs:
           Invoke-WebRequest -Uri "https://sdk.lunarg.com/sdk/download/$ver/windows/vulkansdk-windows-X64-$ver.exe" -OutFile VulkanSDK.exe
           echo Downloaded
           .\VulkanSDK.exe --root C:\VulkanSDK --accept-licenses --default-answer --confirm-command install
-      -
-        name: Generate CMake
+          "VULKAN_SDK=C:/VulkanSDK/" >> $env:GITHUB_ENV
+          "C:/VulkanSDK/Bin" >> $env:GITHUB_PATH
+      - name: Configure Windows WARP test prerequisites
+        if: runner.os == 'Windows' && matrix.gpu-tests
+        shell: pwsh
         run: |
-          $Env:VULKAN_SDK = "C:/VulkanSDK/"
-          $Env:Path += ";C:/VulkanSDK/Bin"
-          mkdir "build"
-          cd "build"
-          cmake -DOMM_VIEWER_INSTALL=OFF -A x64 .. 
-          cd ..
-      -
-        name: Build Debug
-        run: |
-          cd "build"
-          cmake --build . --config Debug
-          cd ..
-      -
-        name: Build Release
-        run: |
-          cd "build"
-          cmake --build . --config Release
-          cd ..
-          
-  Build-Ubuntu:
-    runs-on: ubuntu-22.04
-    steps:
-      -
-        name : Checkout
-        uses: actions/checkout@v3
+          $graphicsTools = Get-WindowsCapability -Online -Name 'Tools.Graphics.DirectX~~~~0.0.1.0'
+          if ($graphicsTools.State -ne 'Installed') {
+            Add-WindowsCapability -Online -Name 'Tools.Graphics.DirectX~~~~0.0.1.0'
+          }
+          # D3D12's disabled-background-optimization policy requires Developer Mode.
+          $developerModePath = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock'
+          New-Item -Path $developerModePath -Force | Out-Null
+          New-ItemProperty -Path $developerModePath -Name AllowDevelopmentWithoutDevLicense -Value 1 -PropertyType DWord -Force | Out-Null
+      - name: Setup CMake
+        uses: jwlawson/actions-setup-cmake@v2
         with:
-          submodules: 'recursive'
-      - 
-        name: Setup CMake
-        uses: jwlawson/actions-setup-cmake@v1.13
-      - 
-        name: Setup Ninja
+          cmake-version: '4.x'
+      - name: Setup Ninja
+        if: runner.os == 'Linux' && matrix.arch == 'x64'
         uses: seanmiddleditch/gha-setup-ninja@master
-        
-      - 
-        name: Install Vulkan SDK
+      - name: Install Linux Vulkan SDK
+        if: runner.os == 'Linux' && matrix.arch == 'x64'
         run: |
           sudo apt install -y wget
           wget -qO- https://packages.lunarg.com/lunarg-signing-key-pub.asc | sudo tee /etc/apt/trusted.gpg.d/lunarg.asc
           sudo wget -qO /etc/apt/sources.list.d/lunarg-vulkan-jammy.list http://packages.lunarg.com/vulkan/lunarg-vulkan-jammy.list
           sudo apt update
-          sudo apt install libwayland-dev wayland-protocols
-          sudo apt install libxkbcommon-dev
-          sudo apt install libxrandr-dev
-          sudo apt install libxinerama-dev
-          sudo apt install libxcursor-dev
-          sudo apt install libxi-dev
-          sudo apt install -y vulkan-sdk
-          
-      -
-        name: CMake Generate
+          sudo apt install -y libwayland-dev wayland-protocols libxkbcommon-dev \
+            libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev vulkan-sdk
+      - name: CMake Generate (precise CPU/GPU math)
+        env:
+          BUILD_ARCH: ${{ matrix.arch }}
+          GPU_TESTS: ${{ matrix.gpu-tests && 'ON' || 'OFF' }}
         run: |
-          mkdir "build"
-          cd "build"
-          cmake -G Ninja -DOMM_VIEWER_INSTALL=OFF .. 
-          cd ..
-      -
-        name: Build Debug
-        run: |
-          cd "build"
-          cmake --build . --config Debug
-          cd ..
-      -
-        name: Build Release
-        run: |
-          cd "build"
-          cmake --build . --config Release
-          cd ..
+          cmake_args=(-DOMM_VIEWER_INSTALL=OFF -DOMM_ENABLE_TESTS=ON -DOMM_ENABLE_FAST_MATH=OFF "-DOMM_ENABLE_GPU_TESTS=$GPU_TESTS")
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            cmake_args+=(
+              -DOMM_GPU_REFERENCE_MODE=ON
+              -DOMM_BUILD_OMM_GPU_NVRHI=ON
+              -DOMM_INTEGRATION_LAYER_NVRHI=ON
+              -DOMM_ENABLE_PRECOMPILED_SHADERS_DXIL=ON
+              "-DOMM_TEST_USE_WARP=$GPU_TESTS"
+            )
+          fi
+          # ARM64 builds omit the viewer and SPIR-V; only Windows x64 runs GPU tests on WARP.
+          if [[ "$BUILD_ARCH" == "ARM64" ]]; then
+            cmake_args+=(
+              -DOMM_BUILD_VIEWER=OFF
+              -DOMM_ENABLE_PRECOMPILED_SHADERS_SPIRV=OFF
+            )
+            if [[ "$RUNNER_OS" == "Windows" ]]; then
+              cmake_args+=(
+                -DSHADERMAKE_FIND_FXC=OFF
+                -DSHADERMAKE_FIND_DXC_VK=OFF
+              )
+            else
+              cmake_args+=(
+                -DOMM_BUILD_OMM_GPU_NVRHI=OFF
+                -DOMM_ENABLE_PRECOMPILED_SHADERS_DXIL=OFF
+                -DSHADERMAKE_FIND_COMPILERS=OFF
+              )
+            fi
+          fi
+          cmake -S . -B build ${{ matrix.cmake-args }} "${cmake_args[@]}"
+      - name: Build Debug (precise CPU/GPU math)
+        run: cmake --build build --config Debug --parallel
+      - name: Build Release (precise CPU/GPU math)
+        run: cmake --build build --config Release --parallel
+      - name: Test Release (${{ matrix.gpu-tests && 'CPU + GPU' || 'CPU only' }} tests, precise math)
+        working-directory: build/bin/Release
+        env:
+          OMM_ALLOW_GPU_REFERENCE_MODE: '1'
+        run: ${{ matrix.test-command }}
+      - name: Configure fast CPU/GPU math for publishing
+        run: cmake -S . -B build -DOMM_ENABLE_GPU_TESTS=OFF -DOMM_GPU_REFERENCE_MODE=OFF -DOMM_ENABLE_FAST_MATH=ON
+      - name: Build Release (fast CPU/GPU math)
+        run: cmake --build build --config Release --parallel
+      - name: Install Release
+        run: cmake --install build --config Release
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact-name }}
+          path: build/install
+          if-no-files-found: error
